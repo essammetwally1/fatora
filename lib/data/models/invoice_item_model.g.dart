@@ -17,11 +17,11 @@ class InvoiceItemModelAdapter extends TypeAdapter<InvoiceItemModel> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return InvoiceItemModel(
-      date: fields[0] as DateTime,
+      date: fields[0] as DateTime?,
       customerName: fields[1] as String,
-      itemName: fields[2] as String,
+      itemName: fields[2] as String?,
       price: fields[3] as double,
-      note: fields[4] as String,
+      note: fields[4] as String?,
       isPaid: fields[5] as bool,
     );
   }

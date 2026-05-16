@@ -1,5 +1,3 @@
-// invoice_item_model.dart
-
 import 'package:hive/hive.dart';
 
 part 'invoice_item_model.g.dart';
@@ -13,23 +11,33 @@ class InvoiceItemModel extends HiveObject {
   String customerName;
 
   @HiveField(2)
-  String itemName;
+  String? itemName;
 
   @HiveField(3)
   double price;
 
   @HiveField(4)
-  String note;
+  String? note;
 
   @HiveField(5)
   bool isPaid;
 
   InvoiceItemModel({
-    required this.date,
+    DateTime? date,
     required this.customerName,
-    required this.itemName,
+    this.itemName,
     required this.price,
-    required this.note,
+    this.note,
     required this.isPaid,
-  });
+  }) : date = date ?? DateTime.now();
+
+  String get displayItemName {
+    final value = itemName?.trim();
+    return value == null || value.isEmpty ? 'بدون اسم صنف' : value;
+  }
+
+  String get displayNote {
+    final value = note?.trim();
+    return value == null || value.isEmpty ? 'لا توجد ملاحظات' : value;
+  }
 }

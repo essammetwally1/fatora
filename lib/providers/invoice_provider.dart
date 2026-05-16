@@ -9,7 +9,7 @@ class InvoiceProvider extends ChangeNotifier {
 
   List<InvoiceModel> _invoices = [];
 
-  List<InvoiceModel> get invoices => _invoices;
+  List<InvoiceModel> get invoices => List.unmodifiable(_invoices);
 
   void loadInvoices() {
     _invoices = _repository.getInvoices();
@@ -19,6 +19,15 @@ class InvoiceProvider extends ChangeNotifier {
 
   Future<void> createInvoice(String title) async {
     await _repository.createInvoice(title);
+
+    loadInvoices();
+  }
+
+  Future<void> updateInvoiceTitle({
+    required InvoiceModel invoice,
+    required String title,
+  }) async {
+    await _repository.updateInvoiceTitle(invoice: invoice, title: title);
 
     loadInvoices();
   }
@@ -34,6 +43,16 @@ class InvoiceProvider extends ChangeNotifier {
     required InvoiceItemModel item,
   }) async {
     await _repository.addItem(invoice: invoice, item: item);
+
+    loadInvoices();
+  }
+
+  Future<void> updateItem({
+    required InvoiceModel invoice,
+    required int index,
+    required InvoiceItemModel item,
+  }) async {
+    await _repository.updateItem(invoice: invoice, index: index, item: item);
 
     loadInvoices();
   }

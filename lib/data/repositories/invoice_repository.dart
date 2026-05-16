@@ -1,5 +1,3 @@
-// invoice_repository.dart
-
 import '../models/invoice_item_model.dart';
 import '../models/invoice_model.dart';
 import '../services/hive_service.dart';
@@ -12,9 +10,18 @@ class InvoiceRepository {
   }
 
   Future<void> createInvoice(String title) async {
-    final invoice = InvoiceModel(title: title, items: []);
+    final invoice = InvoiceModel(title: title.trim(), items: []);
 
     await box.add(invoice);
+  }
+
+  Future<void> updateInvoiceTitle({
+    required InvoiceModel invoice,
+    required String title,
+  }) async {
+    invoice.title = title.trim();
+
+    await invoice.save();
   }
 
   Future<void> deleteInvoice(int index) async {
@@ -26,6 +33,16 @@ class InvoiceRepository {
     required InvoiceItemModel item,
   }) async {
     invoice.items.add(item);
+
+    await invoice.save();
+  }
+
+  Future<void> updateItem({
+    required InvoiceModel invoice,
+    required int index,
+    required InvoiceItemModel item,
+  }) async {
+    invoice.items[index] = item;
 
     await invoice.save();
   }

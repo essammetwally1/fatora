@@ -26,11 +26,11 @@ class InvoiceItemCard extends StatelessWidget {
 
               _row('العميل', item.customerName),
 
-              _row('المنتج', item.itemName),
+              _row('المنتج', item.displayItemName),
 
               _row('السعر', Formatters.formatMoney(item.price)),
 
-              _row('ملاحظات', item.note),
+              _row('ملاحظات', item.displayNote),
 
               _statusRow(
                 'الحالة',
