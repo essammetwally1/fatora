@@ -11,15 +11,21 @@ class InvoiceProvider extends ChangeNotifier {
 
   List<InvoiceModel> get invoices => List.unmodifiable(_invoices);
 
+  InvoiceModel? invoiceByKey(dynamic key) {
+    try {
+      return _invoices.firstWhere((invoice) => invoice.key == key);
+    } catch (_) {
+      return null;
+    }
+  }
+
   void loadInvoices() {
     _invoices = _repository.getInvoices();
-
     notifyListeners();
   }
 
   Future<void> createInvoice(String title) async {
-    await _repository.createInvoice(title);
-
+    await _repository.createInvoice(title.trim());
     loadInvoices();
   }
 
@@ -27,14 +33,15 @@ class InvoiceProvider extends ChangeNotifier {
     required InvoiceModel invoice,
     required String title,
   }) async {
-    await _repository.updateInvoiceTitle(invoice: invoice, title: title);
-
+    await _repository.updateInvoiceTitle(
+      invoiceKey: invoice.key,
+      title: title.trim(),
+    );
     loadInvoices();
   }
 
   Future<void> deleteInvoice(int index) async {
     await _repository.deleteInvoice(index);
-
     loadInvoices();
   }
 
@@ -42,8 +49,7 @@ class InvoiceProvider extends ChangeNotifier {
     required InvoiceModel invoice,
     required InvoiceItemModel item,
   }) async {
-    await _repository.addItem(invoice: invoice, item: item);
-
+    await _repository.addItem(invoiceKey: invoice.key, item: item);
     loadInvoices();
   }
 
@@ -52,8 +58,11 @@ class InvoiceProvider extends ChangeNotifier {
     required int index,
     required InvoiceItemModel item,
   }) async {
-    await _repository.updateItem(invoice: invoice, index: index, item: item);
-
+    await _repository.updateItem(
+      invoiceKey: invoice.key,
+      index: index,
+      item: item,
+    );
     loadInvoices();
   }
 
@@ -61,8 +70,7 @@ class InvoiceProvider extends ChangeNotifier {
     required InvoiceModel invoice,
     required int index,
   }) async {
-    await _repository.deleteItem(invoice: invoice, index: index);
-
+    await _repository.deleteItem(invoiceKey: invoice.key, index: index);
     loadInvoices();
   }
 }

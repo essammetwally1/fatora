@@ -42,7 +42,7 @@ class HomeScreen extends StatelessWidget {
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                 itemCount: provider.invoices.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   final invoice = provider.invoices[index];
 
@@ -167,7 +167,7 @@ class _InvoiceNameDialogState extends State<_InvoiceNameDialog> {
             textInputAction: TextInputAction.done,
             decoration: const InputDecoration(
               labelText: 'اسم الفاتورة',
-              hintText: 'مثال: حسابات محمد',
+              hintText: 'مثال: حسابات عصام',
             ),
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
