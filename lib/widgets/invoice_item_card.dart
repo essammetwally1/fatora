@@ -1,8 +1,6 @@
-// invoice_item_card.dart
-
-import 'package:fatora/core/utils/formatters.dart';
 import 'package:flutter/material.dart';
 
+import '../core/utils/formatters.dart';
 import '../data/models/invoice_item_model.dart';
 
 class InvoiceItemCard extends StatelessWidget {
@@ -12,6 +10,21 @@ class InvoiceItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final paidAmount = item.paidValue;
+    final remainingAmount = item.remainingValue;
+
+    final statusText = item.isPaid
+        ? 'تم الدفع'
+        : item.hasPartialPayment
+        ? 'مدفوع جزئياً'
+        : 'غير مدفوع';
+
+    final statusColor = item.isPaid
+        ? Colors.green
+        : item.hasPartialPayment
+        ? Colors.orange
+        : Colors.red;
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Card(
@@ -23,20 +36,13 @@ class InvoiceItemCard extends StatelessWidget {
           child: Column(
             children: [
               _row('التاريخ', Formatters.formatDate(item.date)),
-
-              _row('العميل', item.customerName),
-
+              _row('العميل', item.displayCustomerName),
               _row('المنتج', item.displayItemName),
-
               _row('السعر', Formatters.formatMoney(item.price)),
-
+              _row('المدفوع', Formatters.formatMoney(paidAmount)),
+              _row('المتبقي', Formatters.formatMoney(remainingAmount)),
               _row('ملاحظات', item.displayNote),
-
-              _statusRow(
-                'الحالة',
-                item.isPaid ? 'تم الدفع' : 'غير مدفوع',
-                item.isPaid,
-              ),
+              _statusRow('الحالة', statusText, statusColor),
             ],
           ),
         ),
@@ -60,7 +66,7 @@ class InvoiceItemCard extends StatelessWidget {
     );
   }
 
-  Widget _statusRow(String title, String value, bool isPaid) {
+  Widget _statusRow(String title, String value, Color color) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -74,10 +80,7 @@ class InvoiceItemCard extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: TextStyle(
-                color: isPaid ? Colors.green : Colors.red,
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(color: color, fontWeight: FontWeight.w500),
             ),
           ),
         ],

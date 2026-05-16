@@ -18,18 +18,19 @@ class InvoiceItemModelAdapter extends TypeAdapter<InvoiceItemModel> {
     };
     return InvoiceItemModel(
       date: fields[0] as DateTime?,
-      customerName: fields[1] as String,
+      customerName: fields[1] as String?,
       itemName: fields[2] as String?,
       price: fields[3] as double,
       note: fields[4] as String?,
       isPaid: fields[5] as bool,
+      paidAmount: fields[6] as double?,
     );
   }
 
   @override
   void write(BinaryWriter writer, InvoiceItemModel obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.date)
       ..writeByte(1)
@@ -41,7 +42,9 @@ class InvoiceItemModelAdapter extends TypeAdapter<InvoiceItemModel> {
       ..writeByte(4)
       ..write(obj.note)
       ..writeByte(5)
-      ..write(obj.isPaid);
+      ..write(obj.isPaid)
+      ..writeByte(6)
+      ..write(obj.paidAmount);
   }
 
   @override

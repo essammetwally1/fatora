@@ -29,6 +29,7 @@ class InvoiceRepository {
   Future<void> deleteInvoice(int index) async {
     final box = HiveService.getBox();
     await box.deleteAt(index);
+    await box.compact();
   }
 
   Future<void> addItem({
@@ -71,5 +72,6 @@ class InvoiceRepository {
 
     invoice.items.removeAt(index);
     await invoice.save();
+    await box.compact();
   }
 }

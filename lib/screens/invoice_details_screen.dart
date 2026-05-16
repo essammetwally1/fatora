@@ -6,6 +6,7 @@ import 'package:fatora/widgets/totals_header.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../data/models/invoice_item_model.dart';
 import '../data/models/invoice_model.dart';
 import '../providers/invoice_provider.dart';
 
@@ -20,6 +21,7 @@ class InvoiceDetailsScreen extends StatelessWidget {
 
     final currentInvoice = provider.invoiceByKey(invoice.key) ?? invoice;
     final colorScheme = Theme.of(context).colorScheme;
+    final sortedItems = _sortedItemsWithOriginalIndexes(currentInvoice.items);
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -39,14 +41,16 @@ class InvoiceDetailsScreen extends StatelessWidget {
                   ? EmptyItemsState(color: colorScheme.primary)
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                      itemCount: currentInvoice.items.length,
+                      itemCount: sortedItems.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
-                        final item = currentInvoice.items[index];
+                        final sortedItem = sortedItems[index];
+                        final item = sortedItem.item;
+                        final originalIndex = sortedItem.originalIndex;
 
                         return Dismissible(
                           key: ValueKey(
-                            '${item.date.microsecondsSinceEpoch}-$index',
+                            '${item.date.microsecondsSinceEpoch}-$originalIndex',
                           ),
                           direction: DismissDirection.endToStart,
                           confirmDismiss: (_) => _confirmDeleteItem(context),
@@ -54,7 +58,7 @@ class InvoiceDetailsScreen extends StatelessWidget {
                           onDismissed: (_) {
                             context.read<InvoiceProvider>().deleteItem(
                               invoice: currentInvoice,
-                              index: index,
+                              index: originalIndex,
                             );
                           },
                           child: InvoiceItemTile(
@@ -62,7 +66,7 @@ class InvoiceDetailsScreen extends StatelessWidget {
                             onEdit: () => showInvoiceItemSheet(
                               context,
                               invoice: currentInvoice,
-                              itemIndex: index,
+                              itemIndex: originalIndex,
                             ),
                           ),
                         );
@@ -73,6 +77,34 @@ class InvoiceDetailsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  List<_IndexedInvoiceItem> _sortedItemsWithOriginalIndexes(
+    List<InvoiceItemModel> items,
+  ) {
+    final indexedItems = [
+      for (var index = 0; index < items.length; index++)
+        _IndexedInvoiceItem(item: items[index], originalIndex: index),
+    ];
+
+    indexedItems.sort((a, b) {
+      final paymentStatusComparison = _paymentSortRank(
+        a.item,
+      ).compareTo(_paymentSortRank(b.item));
+
+      if (paymentStatusComparison != 0) {
+        return paymentStatusComparison;
+      }
+
+      return b.item.date.compareTo(a.item.date);
+    });
+
+    return indexedItems;
+  }
+
+  int _paymentSortRank(InvoiceItemModel item) {
+    if (!item.isPaid) return 0;
+    return 1;
   }
 
   Future<bool?> _confirmDeleteItem(BuildContext context) {
@@ -102,4 +134,11 @@ class InvoiceDetailsScreen extends StatelessWidget {
       },
     );
   }
+}
+
+class _IndexedInvoiceItem {
+  final InvoiceItemModel item;
+  final int originalIndex;
+
+  const _IndexedInvoiceItem({required this.item, required this.originalIndex});
 }

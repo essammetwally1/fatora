@@ -10,6 +10,8 @@ class AppTextFormField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final int maxLines;
   final String? Function(String?)? validator;
+  final ValueChanged<String>? onChanged;
+  final bool autofocus;
 
   const AppTextFormField({
     super.key,
@@ -21,6 +23,8 @@ class AppTextFormField extends StatelessWidget {
     this.inputFormatters,
     this.maxLines = 1,
     this.validator,
+    this.onChanged,
+    this.autofocus = false,
   });
 
   @override
@@ -33,6 +37,8 @@ class AppTextFormField extends StatelessWidget {
       maxLines: maxLines,
       textAlign: TextAlign.right,
       validator: validator,
+      onChanged: onChanged,
+      autofocus: autofocus,
       decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
     );
   }

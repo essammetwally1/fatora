@@ -17,16 +17,14 @@ class InvoiceModel extends HiveObject {
   InvoiceModel({required this.title, required this.items});
 
   double get total {
-    return items.fold(0, (sum, item) => sum + item.price);
+    return items.fold(0.0, (sum, item) => sum + item.price);
   }
 
   double get paidTotal {
-    return items
-        .where((e) => e.isPaid)
-        .fold(0, (sum, item) => sum + item.price);
+    return items.fold(0.0, (sum, item) => sum + item.paidValue);
   }
 
   double get unpaidTotal {
-    return total - paidTotal;
+    return items.fold(0.0, (sum, item) => sum + item.remainingValue);
   }
 }

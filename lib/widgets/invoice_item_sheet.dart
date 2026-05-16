@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/utils/formatters.dart';
 import '../../data/models/invoice_item_model.dart';
 import '../../data/models/invoice_model.dart';
 import '../../providers/invoice_provider.dart';
@@ -54,11 +55,33 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
   late final TextEditingController _customerController;
   late final TextEditingController _itemController;
   late final TextEditingController _priceController;
+  late final TextEditingController _paymentAdjustmentController;
   late final TextEditingController _noteController;
 
   late bool _isPaid;
 
   bool get _isEditing => widget.existing != null;
+
+  bool get _canAdjustPartialPayment =>
+      _isEditing && !(widget.existing?.isPaid ?? false);
+
+  double get _basePaidAmount => widget.existing?.paidValue ?? 0;
+
+  double get _previewPrice => _parsePrice(_priceController.text) ?? 0;
+
+  double get _previewPaidAmount {
+    if (_isPaid) return _previewPrice;
+
+    final adjustment =
+        _parseSignedAmount(_paymentAdjustmentController.text) ?? 0;
+    final paidAmount = _canAdjustPartialPayment
+        ? _basePaidAmount + adjustment
+        : _basePaidAmount;
+
+    return _clampPaidAmount(paidAmount, _previewPrice);
+  }
+
+  double get _previewRemainingAmount => _previewPrice - _previewPaidAmount;
 
   @override
   void initState() {
@@ -75,6 +98,10 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
     _priceController = TextEditingController(
       text: existing == null ? '' : existing.price.toString(),
     );
+    _priceController.addListener(_refreshPreview);
+
+    _paymentAdjustmentController = TextEditingController();
+    _paymentAdjustmentController.addListener(_refreshPreview);
 
     _noteController = TextEditingController(text: existing?.note ?? '');
 
@@ -85,7 +112,12 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
   void dispose() {
     _customerController.dispose();
     _itemController.dispose();
-    _priceController.dispose();
+    _priceController
+      ..removeListener(_refreshPreview)
+      ..dispose();
+    _paymentAdjustmentController
+      ..removeListener(_refreshPreview)
+      ..dispose();
     _noteController.dispose();
     super.dispose();
   }
@@ -130,15 +162,9 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
 
                 AppTextFormField(
                   controller: _customerController,
-                  label: 'اسم العميل',
+                  label: 'العميل (اختياري)',
                   icon: Icons.person_outline,
                   textInputAction: TextInputAction.next,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'اسم العميل مطلوب';
-                    }
-                    return null;
-                  },
                 ),
 
                 const SizedBox(height: 12),
@@ -172,6 +198,46 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
                     return null;
                   },
                 ),
+
+                if (_canAdjustPartialPayment) ...[
+                  const SizedBox(height: 12),
+                  AppTextFormField(
+                    controller: _paymentAdjustmentController,
+                    label: 'تعديل المدفوع (+ أو -)',
+                    icon: Icons.add_card_outlined,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                      signed: true,
+                    ),
+                    textInputAction: TextInputAction.next,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-.,]')),
+                    ],
+                    validator: (value) {
+                      final adjustment = _parseSignedAmount(value ?? '') ?? 0;
+                      final price = _parsePrice(_priceController.text) ?? 0;
+                      final paidAmount = _basePaidAmount + adjustment;
+
+                      if ((value ?? '').trim().isNotEmpty &&
+                          _parseSignedAmount(value ?? '') == null) {
+                        return 'اكتب مبلغ صحيح مثل +50 أو -20';
+                      }
+                      if (paidAmount < 0) {
+                        return 'لا يمكن أن يكون المدفوع أقل من صفر';
+                      }
+                      if (paidAmount > price) {
+                        return 'لا يمكن أن يكون المدفوع أكبر من السعر';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  _PaymentPreview(
+                    total: _previewPrice,
+                    paid: _previewPaidAmount,
+                    remaining: _previewRemainingAmount,
+                  ),
+                ],
 
                 const SizedBox(height: 12),
 
@@ -223,7 +289,11 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
       itemName: _nullableText(_itemController.text),
       price: _parsePrice(_priceController.text)!,
       note: _nullableText(_noteController.text),
-      isPaid: _isPaid,
+      isPaid:
+          _isPaid || _previewPaidAmount >= _parsePrice(_priceController.text)!,
+      paidAmount: _isPaid
+          ? _parsePrice(_priceController.text)!
+          : _previewPaidAmount,
     );
 
     final provider = context.read<InvoiceProvider>();
@@ -249,5 +319,79 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
 
   double? _parsePrice(String value) {
     return double.tryParse(value.trim().replaceAll(',', '.'));
+  }
+
+  double? _parseSignedAmount(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return 0.0;
+    return double.tryParse(trimmed.replaceAll(',', '.'));
+  }
+
+  double _clampPaidAmount(double value, double price) {
+    if (value < 0) return 0.0;
+    if (value > price) return price;
+    return value;
+  }
+
+  void _refreshPreview() {
+    if (mounted) setState(() {});
+  }
+}
+
+class _PaymentPreview extends StatelessWidget {
+  final double total;
+  final double paid;
+  final double remaining;
+
+  const _PaymentPreview({
+    required this.total,
+    required this.paid,
+    required this.remaining,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.primary.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: .18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PreviewRow(title: 'الإجمالي', value: total),
+          const SizedBox(height: 6),
+          _PreviewRow(title: 'المدفوع بعد التعديل', value: paid),
+          const SizedBox(height: 6),
+          _PreviewRow(title: 'المتبقي بعد التعديل', value: remaining),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreviewRow extends StatelessWidget {
+  final String title;
+  final double value;
+
+  const _PreviewRow({required this.title, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+        Text(Formatters.formatMoney(value)),
+      ],
+    );
   }
 }

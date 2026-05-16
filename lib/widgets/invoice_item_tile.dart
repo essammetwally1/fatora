@@ -14,7 +14,16 @@ class InvoiceItemTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final statusColor = item.isPaid ? Colors.green : Colors.orange;
+    final statusColor = item.isPaid
+        ? Colors.green
+        : item.hasPartialPayment
+        ? Colors.blue
+        : Colors.orange;
+    final statusText = item.isPaid
+        ? 'تم الدفع'
+        : item.hasPartialPayment
+        ? 'مدفوع جزئياً'
+        : 'لم يتم الدفع';
 
     return Card(
       elevation: 0,
@@ -31,7 +40,7 @@ class InvoiceItemTile extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      item.customerName,
+                      item.customerName!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleMedium?.copyWith(
@@ -49,7 +58,7 @@ class InvoiceItemTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(99),
                     ),
                     child: Text(
-                      item.isPaid ? 'تم الدفع' : 'لم يتم الدفع',
+                      statusText,
                       style: TextStyle(
                         color: statusColor,
                         fontWeight: FontWeight.bold,
@@ -72,6 +81,18 @@ class InvoiceItemTile extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               InfoRow(title: 'ملاحظات', value: item.displayNote),
+              if (item.hasPartialPayment) ...[
+                const SizedBox(height: 8),
+                InfoRow(
+                  title: 'المدفوع',
+                  value: Formatters.formatMoney(item.paidValue),
+                ),
+                const SizedBox(height: 8),
+                InfoRow(
+                  title: 'المتبقي',
+                  value: Formatters.formatMoney(item.remainingValue),
+                ),
+              ],
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -80,7 +101,9 @@ class InvoiceItemTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
-                  Formatters.formatMoney(item.price),
+                  item.hasPartialPayment
+                      ? 'السعر: ${Formatters.formatMoney(item.price)}'
+                      : Formatters.formatMoney(item.price),
                   textAlign: TextAlign.center,
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: colorScheme.primary,
