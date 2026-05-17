@@ -14,13 +14,13 @@ class AppTheme {
     brightness: Brightness.light,
     scaffoldBackground: backgroundWhite,
     surface: Colors.white,
-    onSurface: black,
+    onSurface: backgroundWhite,
   );
 
   static ThemeData darkTheme = _theme(
     brightness: Brightness.dark,
     scaffoldBackground: backgroundDark,
-    surface: const Color(0xFF181A35),
+    surface: backgroundWhite,
     onSurface: backgroundWhite,
   );
 

@@ -21,7 +21,8 @@ class InvoiceItemTile extends StatelessWidget {
       child: Card(
         elevation: 0,
         margin: EdgeInsets.zero,
-        color: colorScheme.surface,
+        color: AppTheme.backgroundWhite.withValues(alpha: .6),
+
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
           side: BorderSide(
@@ -82,7 +83,7 @@ class InvoiceItemTile extends StatelessWidget {
                           Flexible(
                             child: Text(
                               Formatters.formatMoney(item.price),
-                              maxLines: 1,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: colorScheme.primary,
@@ -266,7 +267,7 @@ class _DialogValueRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: colorScheme.primary.withValues(alpha: .06),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(

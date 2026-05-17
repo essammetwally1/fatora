@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/utils/formatters.dart';
 import '../data/models/invoice_model.dart';
 import '../providers/invoice_provider.dart';
 import '../providers/settings_provider.dart';
@@ -13,6 +14,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<InvoiceProvider>();
+    final invoices = provider.invoices;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Directionality(
@@ -37,22 +39,37 @@ class HomeScreen extends StatelessWidget {
           icon: const Icon(Icons.add),
           label: const Text('فاتورة جديدة'),
         ),
-        body: provider.invoices.isEmpty
+        body: invoices.isEmpty
             ? _EmptyState(color: colorScheme.primary)
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                itemCount: provider.invoices.length,
+                itemCount: invoices.length + 2,
                 separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
-                  final invoice = provider.invoices[index];
+                  if (index == 0) {
+                    return _HomeTotalsSection(
+                      totals: _InvoicesTotals.fromInvoices(invoices),
+                    );
+                  }
+
+                  if (index == 1) {
+                    return _InvoicesSectionHeader(
+                      invoiceCount: invoices.length,
+                    );
+                  }
+
+                  final invoiceIndex = index - 2;
+                  final invoice = invoices[invoiceIndex];
 
                   return Dismissible(
-                    key: ValueKey(invoice.key ?? index),
+                    key: ValueKey(invoice.key ?? invoiceIndex),
                     direction: DismissDirection.endToStart,
                     confirmDismiss: (_) => _confirmDeleteInvoice(context),
                     background: const _DeleteBackground(),
                     onDismissed: (_) {
-                      context.read<InvoiceProvider>().deleteInvoice(index);
+                      context.read<InvoiceProvider>().deleteInvoice(
+                        invoiceIndex,
+                      );
                     },
                     child: InvoiceCard(
                       invoice: invoice,
@@ -67,10 +84,19 @@ class HomeScreen extends StatelessWidget {
                       },
                       onEdit: () =>
                           _openInvoiceNameDialog(context, invoice: invoice),
+                      onExport: () => _showPdfExportComingSoon(context),
                     ),
                   );
                 },
               ),
+      ),
+    );
+  }
+
+  void _showPdfExportComingSoon(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('تصدير PDF للطباعة أو الحفظ سيتم إضافته قريباً'),
       ),
     );
   }
@@ -123,6 +149,298 @@ class HomeScreen extends StatelessWidget {
     } else {
       await provider.updateInvoiceTitle(invoice: invoice, title: title);
     }
+  }
+}
+
+class _HomeTotalsSection extends StatelessWidget {
+  final _InvoicesTotals totals;
+
+  const _HomeTotalsSection({required this.totals});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [
+            colorScheme.primary,
+            colorScheme.primary.withValues(alpha: .82),
+            colorScheme.secondary.withValues(alpha: .72),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.primary.withValues(alpha: .22),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            left: -28,
+            top: -28,
+            child: _DecorativeCircle(
+              size: 96,
+              color: Colors.white.withValues(alpha: .10),
+            ),
+          ),
+          Positioned(
+            right: -18,
+            bottom: -38,
+            child: _DecorativeCircle(
+              size: 120,
+              color: Colors.white.withValues(alpha: .08),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .18),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: .22),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.account_balance_wallet_outlined,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'إجمالي كل الفواتير',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'مجموع أسعار كل العناصر بدون حساب المدفوع أو المتبقي',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.white.withValues(alpha: .78),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              Text(
+                Formatters.formatMoney(totals.total),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  height: 1.1,
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: _MiniStatCard(
+                      title: 'عدد الفواتير',
+                      value: '${totals.invoiceCount}',
+                      icon: Icons.receipt_long_outlined,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _MiniStatCard(
+                      title: 'عدد العناصر',
+                      value: '${totals.itemCount}',
+                      icon: Icons.inventory_2_outlined,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InvoicesSectionHeader extends StatelessWidget {
+  final int invoiceCount;
+
+  const _InvoicesSectionHeader({required this.invoiceCount});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 2),
+      child: Row(
+        children: [
+          Container(
+            width: 5,
+            height: 24,
+            decoration: BoxDecoration(
+              color: colorScheme.primary,
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          Expanded(
+            child: Text(
+              'الفواتير',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: colorScheme.primary.withValues(alpha: .10),
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(
+              '$invoiceCount فاتورة',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniStatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+
+  const _MiniStatCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: .16)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 15,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DecorativeCircle extends StatelessWidget {
+  final double size;
+  final Color color;
+
+  const _DecorativeCircle({required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+}
+
+class _InvoicesTotals {
+  final int invoiceCount;
+  final int itemCount;
+  final double total;
+
+  const _InvoicesTotals({
+    required this.invoiceCount,
+    required this.itemCount,
+    required this.total,
+  });
+
+  factory _InvoicesTotals.fromInvoices(List<InvoiceModel> invoices) {
+    var itemCount = 0;
+    var total = 0.0;
+
+    for (final invoice in invoices) {
+      for (final item in invoice.items) {
+        itemCount++;
+        total += item.price;
+      }
+    }
+
+    return _InvoicesTotals(
+      invoiceCount: invoices.length,
+      itemCount: itemCount,
+      total: total,
+    );
   }
 }
 

@@ -7,12 +7,14 @@ class InvoiceCard extends StatelessWidget {
   final InvoiceModel invoice;
   final VoidCallback onTap;
   final VoidCallback onEdit;
+  final VoidCallback onExport;
 
   const InvoiceCard({
     super.key,
     required this.invoice,
     required this.onTap,
     required this.onEdit,
+    required this.onExport,
   });
 
   @override
@@ -68,10 +70,26 @@ class InvoiceCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  IconButton(
-                    tooltip: 'تعديل الاسم',
-                    onPressed: onEdit,
-                    icon: const Icon(Icons.edit_outlined, color: Colors.white),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'تصدير PDF قريباً',
+                        onPressed: onExport,
+                        icon: const Icon(
+                          Icons.picture_as_pdf_outlined,
+                          color: Colors.white,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'تعديل الاسم',
+                        onPressed: onEdit,
+                        icon: const Icon(
+                          Icons.edit_outlined,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                   Text(
                     Formatters.formatMoney(invoice.total),
