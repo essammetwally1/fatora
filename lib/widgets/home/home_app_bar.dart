@@ -16,7 +16,9 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         IconButton(
           tooltip: 'تغيير المظهر',
-          onPressed: context.read<SettingsProvider>().toggleTheme,
+          onPressed: () {
+            context.read<SettingsProvider>().toggleTheme();
+          },
           icon: Selector<SettingsProvider, bool>(
             selector: (_, settings) => settings.isDark,
             builder: (_, isDark, _) {

@@ -1,19 +1,11 @@
-// COMPLETE CORRECT main.dart
-
 import 'package:flutter/material.dart';
-
 import 'package:intl/date_symbol_data_local.dart';
-
 import 'package:provider/provider.dart';
 
 import 'app/app_theme.dart';
-
 import 'data/services/hive_service.dart';
-
 import 'providers/invoice_provider.dart';
-
 import 'providers/settings_provider.dart';
-
 import 'screens/home_screen.dart';
 
 Future<void> main() async {
@@ -33,26 +25,21 @@ class FatoraApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => SettingsProvider()),
-
-        ChangeNotifierProvider(
+        ChangeNotifierProvider<SettingsProvider>(
+          create: (_) => SettingsProvider(),
+        ),
+        ChangeNotifierProvider<InvoiceProvider>(
           create: (_) => InvoiceProvider()..loadInvoices(),
         ),
       ],
-
       child: Consumer<SettingsProvider>(
         builder: (context, settings, _) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
-
             title: 'Fatora',
-
             theme: AppTheme.lightTheme,
-
             darkTheme: AppTheme.darkTheme,
-
-            themeMode: settings.isDark ? ThemeMode.dark : ThemeMode.light,
-
+            themeMode: settings.themeMode,
             home: const HomeScreen(),
           );
         },

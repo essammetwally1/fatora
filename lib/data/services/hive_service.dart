@@ -5,10 +5,12 @@ import '../models/invoice_model.dart';
 
 class HiveService {
   static const String invoiceBox = 'invoiceBox';
+  static const String settingsBox = 'settingsBox';
+
+  static const String themeModeKey = 'themeMode';
 
   static Future<void> init() async {
     await Hive.initFlutter();
-    // await Hive.deleteBoxFromDisk('invoiceBox');
 
     if (!Hive.isAdapterRegistered(0)) {
       Hive.registerAdapter(InvoiceItemModelAdapter());
@@ -21,9 +23,22 @@ class HiveService {
     if (!Hive.isBoxOpen(invoiceBox)) {
       await Hive.openBox<InvoiceModel>(invoiceBox);
     }
+
+    if (!Hive.isBoxOpen(settingsBox)) {
+      await Hive.openBox(settingsBox);
+    }
   }
 
-  static Box<InvoiceModel> getBox() {
+  static Box<InvoiceModel> getInvoiceBox() {
     return Hive.box<InvoiceModel>(invoiceBox);
+  }
+
+  // Keep this if your InvoiceProvider already uses HiveService.getBox()
+  static Box<InvoiceModel> getBox() {
+    return getInvoiceBox();
+  }
+
+  static Box getSettingsBox() {
+    return Hive.box(settingsBox);
   }
 }
