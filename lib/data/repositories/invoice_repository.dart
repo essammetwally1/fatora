@@ -26,9 +26,12 @@ class InvoiceRepository {
     await invoice.save();
   }
 
-  Future<void> deleteInvoice(int index) async {
+  Future<void> deleteInvoice({required dynamic invoiceKey}) async {
     final box = HiveService.getBox();
-    await box.deleteAt(index);
+
+    if (!box.containsKey(invoiceKey)) return;
+
+    await box.delete(invoiceKey);
     await box.compact();
   }
 

@@ -40,6 +40,8 @@ class AppTextFormField extends StatelessWidget {
       onChanged: onChanged,
       autofocus: autofocus,
       decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
+      style: Theme.of(context).textTheme.bodyLarge,
+      cursorColor: Theme.of(context).colorScheme.primary,
     );
   }
 }

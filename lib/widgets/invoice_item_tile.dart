@@ -19,14 +19,14 @@ class InvoiceItemTile extends StatelessWidget {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Card(
-        elevation: 0,
+        elevation: theme.brightness == Brightness.dark ? 0 : 1,
         margin: EdgeInsets.zero,
-        color: AppTheme.backgroundWhite.withValues(alpha: .6),
-
+        color: colorScheme.surface,
+        shadowColor: colorScheme.primary.withValues(alpha: .08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
           side: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: .7),
+            color: colorScheme.outlineVariant.withValues(alpha: .65),
           ),
         ),
         clipBehavior: Clip.antiAlias,
@@ -40,14 +40,12 @@ class InvoiceItemTile extends StatelessWidget {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: status.color.withValues(alpha: .12),
+                    color: status.color.withValues(alpha: .14),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(status.icon, color: status.color, size: 22),
                 ),
-
                 const SizedBox(width: 10),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,12 +57,11 @@ class InvoiceItemTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.right,
                         style: theme.textTheme.titleSmall?.copyWith(
+                          color: colorScheme.onSurface,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-
                       const SizedBox(height: 4),
-
                       Text(
                         item.displayItemName,
                         maxLines: 1,
@@ -75,9 +72,7 @@ class InvoiceItemTile extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-
                       const SizedBox(height: 4),
-
                       Row(
                         children: [
                           Flexible(
@@ -87,7 +82,7 @@ class InvoiceItemTile extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: colorScheme.primary,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                           ),
@@ -106,6 +101,7 @@ class InvoiceItemTile extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
@@ -115,13 +111,9 @@ class InvoiceItemTile extends StatelessWidget {
                     ],
                   ),
                 ),
-
                 const SizedBox(width: 8),
-
                 _StatusChip(status: status),
-
                 const SizedBox(width: 4),
-
                 Icon(
                   Icons.chevron_left_rounded,
                   color: colorScheme.onSurfaceVariant,
@@ -140,9 +132,14 @@ class InvoiceItemTile extends StatelessWidget {
     return showDialog<void>(
       context: context,
       builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final colorScheme = theme.colorScheme;
+
         return Directionality(
           textDirection: TextDirection.rtl,
           child: AlertDialog(
+            backgroundColor: colorScheme.surface,
+            surfaceTintColor: Colors.transparent,
             titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
             contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
             actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -153,6 +150,10 @@ class InvoiceItemTile extends StatelessWidget {
                     item.displayCustomerName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -232,8 +233,9 @@ class _StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: status.color.withValues(alpha: .12),
+        color: status.color.withValues(alpha: .14),
         borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: status.color.withValues(alpha: .22)),
       ),
       child: Text(
         status.text,
@@ -261,19 +263,35 @@ class _DialogValueRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark
+              ? colorScheme.surfaceContainerHighest.withValues(alpha: .55)
+              : colorScheme.surfaceContainerHighest.withValues(alpha: .70),
           borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(
+              alpha: isDark ? .35 : .65,
+            ),
+          ),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 20, color: colorScheme.primary),
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: colorScheme.primary.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 19, color: colorScheme.primary),
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -283,6 +301,7 @@ class _DialogValueRow extends StatelessWidget {
                     label,
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -290,7 +309,8 @@ class _DialogValueRow extends StatelessWidget {
                     value,
                     textAlign: TextAlign.right,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ],

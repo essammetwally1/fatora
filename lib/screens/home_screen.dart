@@ -26,10 +26,11 @@ class HomeScreen extends StatelessWidget {
             IconButton(
               tooltip: 'تغيير المظهر',
               onPressed: context.read<SettingsProvider>().toggleTheme,
-              icon: Icon(
-                context.watch<SettingsProvider>().isDark
-                    ? Icons.light_mode_outlined
-                    : Icons.dark_mode_outlined,
+              icon: Selector<SettingsProvider, bool>(
+                selector: (_, settings) => settings.isDark,
+                builder: (_, isDark, _) => Icon(
+                  isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                ),
               ),
             ),
           ],
@@ -67,9 +68,7 @@ class HomeScreen extends StatelessWidget {
                     confirmDismiss: (_) => _confirmDeleteInvoice(context),
                     background: const _DeleteBackground(),
                     onDismissed: (_) {
-                      context.read<InvoiceProvider>().deleteInvoice(
-                        invoiceIndex,
-                      );
+                      context.read<InvoiceProvider>().deleteInvoice(invoice);
                     },
                     child: InvoiceCard(
                       invoice: invoice,
@@ -104,28 +103,30 @@ class HomeScreen extends StatelessWidget {
   Future<bool?> _confirmDeleteInvoice(BuildContext context) {
     return showDialog<bool>(
       context: context,
-      builder: (dialogContext) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          title: const Text('حذف الفاتورة'),
-          content: const Text(
-            'هل أنت متأكد من حذف هذه الفاتورة؟ سيتم حذف كل العناصر المرتبطة بها.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('إلغاء'),
+      builder: (dialogContext) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            title: const Text('حذف الفاتورة'),
+            content: const Text(
+              'هل أنت متأكد من حذف هذه الفاتورة؟ سيتم حذف كل العناصر المرتبطة بها.',
             ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('إلغاء'),
               ),
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('حذف'),
-            ),
-          ],
-        ),
-      ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                ),
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('حذف'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -163,9 +164,9 @@ class _HomeTotalsSection extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(24),
         gradient: LinearGradient(
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
@@ -177,27 +178,27 @@ class _HomeTotalsSection extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: colorScheme.primary.withValues(alpha: .22),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
+            color: colorScheme.primary.withValues(alpha: .18),
+            blurRadius: 14,
+            offset: const Offset(0, 7),
           ),
         ],
       ),
       child: Stack(
         children: [
           Positioned(
-            left: -28,
-            top: -28,
+            left: -24,
+            top: -24,
             child: _DecorativeCircle(
-              size: 96,
+              size: 76,
               color: Colors.white.withValues(alpha: .10),
             ),
           ),
           Positioned(
-            right: -18,
-            bottom: -38,
+            right: -24,
+            bottom: -34,
             child: _DecorativeCircle(
-              size: 120,
+              size: 92,
               color: Colors.white.withValues(alpha: .08),
             ),
           ),
@@ -207,11 +208,11 @@ class _HomeTotalsSection extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    width: 54,
-                    height: 54,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: .18),
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(15),
                       border: Border.all(
                         color: Colors.white.withValues(alpha: .22),
                       ),
@@ -219,11 +220,11 @@ class _HomeTotalsSection extends StatelessWidget {
                     child: const Icon(
                       Icons.account_balance_wallet_outlined,
                       color: Colors.white,
-                      size: 28,
+                      size: 23,
                     ),
                   ),
 
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
 
                   Expanded(
                     child: Column(
@@ -231,18 +232,19 @@ class _HomeTotalsSection extends StatelessWidget {
                       children: [
                         Text(
                           'إجمالي كل الفواتير',
-                          style: theme.textTheme.titleMedium?.copyWith(
+                          style: theme.textTheme.bodyMedium?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
-                          'مجموع أسعار كل العناصر بدون حساب المدفوع أو المتبقي',
-                          maxLines: 2,
+                          'مجموع أسعار كل العناصر',
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: Colors.white.withValues(alpha: .78),
+                            fontSize: 11,
                           ),
                         ),
                       ],
@@ -251,34 +253,34 @@ class _HomeTotalsSection extends StatelessWidget {
                 ],
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 12),
 
               Text(
                 Formatters.formatMoney(totals.total),
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.headlineMedium?.copyWith(
+                style: theme.textTheme.titleLarge?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w900,
                   height: 1.1,
                 ),
               ),
 
-              const SizedBox(height: 18),
+              const SizedBox(height: 10),
 
               Row(
                 children: [
                   Expanded(
                     child: _MiniStatCard(
-                      title: 'عدد الفواتير',
+                      title: 'الفواتير',
                       value: '${totals.invoiceCount}',
                       icon: Icons.receipt_long_outlined,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _MiniStatCard(
-                      title: 'عدد العناصر',
+                      title: 'العناصر',
                       value: '${totals.itemCount}',
                       icon: Icons.inventory_2_outlined,
                     ),
@@ -315,9 +317,7 @@ class _InvoicesSectionHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
             ),
           ),
-
           const SizedBox(width: 8),
-
           Expanded(
             child: Text(
               'الفواتير',
@@ -326,7 +326,6 @@ class _InvoicesSectionHeader extends StatelessWidget {
               ),
             ),
           ),
-
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
@@ -361,16 +360,16 @@ class _MiniStatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: .14),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(15),
         border: Border.all(color: Colors.white.withValues(alpha: .16)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.white, size: 20),
-          const SizedBox(width: 8),
+          Icon(icon, color: Colors.white, size: 17),
+          const SizedBox(width: 6),
           Expanded(
             child: Text(
               title,
@@ -378,18 +377,18 @@ class _MiniStatCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Colors.white70,
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           Text(
             value,
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
-              fontSize: 15,
+              fontSize: 13,
             ),
           ),
         ],
@@ -462,12 +461,14 @@ class _InvoiceNameDialogState extends State<_InvoiceNameDialog> {
   @override
   void initState() {
     super.initState();
+
     _controller = TextEditingController(text: widget.initialTitle ?? '');
   }
 
   @override
   void dispose() {
     _controller.dispose();
+
     super.dispose();
   }
 
@@ -491,6 +492,7 @@ class _InvoiceNameDialogState extends State<_InvoiceNameDialog> {
               if (value == null || value.trim().isEmpty) {
                 return 'اسم الفاتورة مطلوب';
               }
+
               return null;
             },
             onFieldSubmitted: (_) => _submit(),

@@ -12,21 +12,24 @@ class InvoiceProvider extends ChangeNotifier {
   List<InvoiceModel> get invoices => List.unmodifiable(_invoices);
 
   InvoiceModel? invoiceByKey(dynamic key) {
-    try {
-      return _invoices.firstWhere((invoice) => invoice.key == key);
-    } catch (_) {
-      return null;
+    if (key == null) return null;
+
+    for (final invoice in _invoices) {
+      if (invoice.key == key) {
+        return invoice;
+      }
     }
+
+    return null;
   }
 
   void loadInvoices() {
-    _invoices = _repository.getInvoices();
-    notifyListeners();
+    _replaceInvoices(_repository.getInvoices());
   }
 
   Future<void> createInvoice(String title) async {
     await _repository.createInvoice(title.trim());
-    loadInvoices();
+    _replaceInvoices(_repository.getInvoices());
   }
 
   Future<void> updateInvoiceTitle({
@@ -37,12 +40,14 @@ class InvoiceProvider extends ChangeNotifier {
       invoiceKey: invoice.key,
       title: title.trim(),
     );
-    loadInvoices();
+
+    _replaceInvoices(_repository.getInvoices());
   }
 
-  Future<void> deleteInvoice(int index) async {
-    await _repository.deleteInvoice(index);
-    loadInvoices();
+  Future<void> deleteInvoice(InvoiceModel invoice) async {
+    await _repository.deleteInvoice(invoiceKey: invoice.key);
+
+    _replaceInvoices(_repository.getInvoices());
   }
 
   Future<void> addItem({
@@ -50,7 +55,8 @@ class InvoiceProvider extends ChangeNotifier {
     required InvoiceItemModel item,
   }) async {
     await _repository.addItem(invoiceKey: invoice.key, item: item);
-    loadInvoices();
+
+    _replaceInvoices(_repository.getInvoices());
   }
 
   Future<void> updateItem({
@@ -63,7 +69,8 @@ class InvoiceProvider extends ChangeNotifier {
       index: index,
       item: item,
     );
-    loadInvoices();
+
+    _replaceInvoices(_repository.getInvoices());
   }
 
   Future<void> deleteItem({
@@ -71,6 +78,12 @@ class InvoiceProvider extends ChangeNotifier {
     required int index,
   }) async {
     await _repository.deleteItem(invoiceKey: invoice.key, index: index);
-    loadInvoices();
+
+    _replaceInvoices(_repository.getInvoices());
+  }
+
+  void _replaceInvoices(List<InvoiceModel> invoices) {
+    _invoices = invoices;
+    notifyListeners();
   }
 }

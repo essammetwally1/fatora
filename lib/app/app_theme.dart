@@ -7,28 +7,40 @@ class AppTheme {
   static const Color backgroundDark = Color(0xFF101127);
   static const Color black = Color(0xFF1C1C1C);
   static const Color red = Color(0xFFFF5659);
-  static const Color green = Colors.green;
-  static const Color blue = Colors.blue;
+  static const Color green = Color(0xFF22C55E);
+  static const Color blue = Color(0xFF3B82F6);
+
+  static const Color _lightSurface = Colors.white;
+  static const Color _darkSurface = Color(0xFF1A1B35);
+  static const Color _darkSurfaceHigh = Color(0xFF242544);
+  static const Color _lightOnSurface = black;
+  static const Color _darkOnSurface = Color(0xFFF4F7FB);
 
   static ThemeData lightTheme = _theme(
     brightness: Brightness.light,
     scaffoldBackground: backgroundWhite,
-    surface: Colors.white,
-    onSurface: backgroundWhite,
+    surface: _lightSurface,
+    surfaceContainerHighest: const Color(0xFFE8F2F7),
+    onSurface: _lightOnSurface,
+    onSurfaceVariant: const Color(0xFF5F6673),
   );
 
   static ThemeData darkTheme = _theme(
     brightness: Brightness.dark,
     scaffoldBackground: backgroundDark,
-    surface: backgroundWhite,
-    onSurface: backgroundWhite,
+    surface: _darkSurface,
+    surfaceContainerHighest: _darkSurfaceHigh,
+    onSurface: _darkOnSurface,
+    onSurfaceVariant: const Color(0xFFC4C8D4),
   );
 
   static ThemeData _theme({
     required Brightness brightness,
     required Color scaffoldBackground,
     required Color surface,
+    required Color surfaceContainerHighest,
     required Color onSurface,
+    required Color onSurfaceVariant,
   }) {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: primary,
@@ -36,6 +48,9 @@ class AppTheme {
       primary: primary,
       error: red,
       surface: surface,
+      surfaceContainerHighest: surfaceContainerHighest,
+      onSurface: onSurface,
+      onSurfaceVariant: onSurfaceVariant,
     );
 
     return ThemeData(
@@ -45,8 +60,11 @@ class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: scaffoldBackground,
       cardColor: surface,
+      dividerColor: onSurfaceVariant.withValues(alpha: .24),
+      hintColor: onSurfaceVariant,
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
+
       appBarTheme: AppBarTheme(
         backgroundColor: scaffoldBackground,
         foregroundColor: primary,
@@ -59,26 +77,42 @@ class AppTheme {
         ),
         iconTheme: const IconThemeData(size: 28, color: primary),
       ),
+
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: primary),
+
       cardTheme: CardThemeData(
         color: surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
+
       dialogTheme: DialogThemeData(
         backgroundColor: surface,
         surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: onSurface,
+          fontSize: 20,
+          fontWeight: FontWeight.w800,
+        ),
+        contentTextStyle: TextStyle(color: onSurfaceVariant, fontSize: 15),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
+
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
         backgroundColor: primary,
         foregroundColor: Colors.white,
         shape: StadiumBorder(),
       ),
+
       inputDecorationTheme: InputDecorationTheme(
         labelStyle: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w600,
+          color: primary,
+        ),
+        floatingLabelStyle: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
           color: primary,
         ),
         contentPadding: const EdgeInsets.symmetric(
@@ -87,16 +121,24 @@ class AppTheme {
         ),
         hintStyle: TextStyle(
           fontSize: 15,
-          color: brightness == Brightness.dark ? backgroundWhite : gray,
+          color: onSurfaceVariant.withValues(alpha: .78),
           fontWeight: FontWeight.w500,
         ),
+        prefixIconColor: primary,
+        suffixIconColor: onSurfaceVariant,
         filled: true,
         fillColor: brightness == Brightness.dark
-            ? Colors.white.withValues(alpha: .05)
+            ? Colors.white.withValues(alpha: .06)
             : Colors.white,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: primary.withValues(alpha: .45)),
+          borderSide: BorderSide(color: primary.withValues(alpha: .35)),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: onSurfaceVariant.withValues(alpha: .18),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
@@ -111,6 +153,23 @@ class AppTheme {
           borderSide: const BorderSide(color: red, width: 1.4),
         ),
       ),
+
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: primary,
+        selectionColor: primary.withValues(alpha: .22),
+        selectionHandleColor: primary,
+      ),
+
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith<Color?>((states) {
+          if (states.contains(WidgetState.selected)) {
+            return primary;
+          }
+          return Colors.transparent;
+        }),
+        checkColor: const WidgetStatePropertyAll<Color>(Colors.white),
+      ),
+
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: primary,
@@ -122,6 +181,7 @@ class AppTheme {
           minimumSize: const Size.fromHeight(48),
         ),
       ),
+
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
@@ -131,7 +191,13 @@ class AppTheme {
           ),
         ),
       ),
+
       textTheme: TextTheme(
+        headlineMedium: TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.w800,
+          color: onSurface,
+        ),
         headlineSmall: TextStyle(
           fontSize: 24,
           fontWeight: FontWeight.bold,
@@ -152,8 +218,12 @@ class AppTheme {
           fontWeight: FontWeight.w500,
           color: onSurface,
         ),
+        bodyLarge: TextStyle(fontSize: 16, color: onSurface),
         bodyMedium: TextStyle(fontSize: 14, color: onSurface),
+        bodySmall: TextStyle(fontSize: 12, color: onSurfaceVariant),
+        labelMedium: TextStyle(fontSize: 12, color: onSurfaceVariant),
       ),
+
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: primary,

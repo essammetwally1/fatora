@@ -20,7 +20,14 @@ class InvoiceDetailsScreen extends StatefulWidget {
 }
 
 class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
+  static final RegExp _arabicDiacriticsRegex = RegExp(r'[\u064B-\u065F\u0670]');
+
+  static final RegExp _alefVariantsRegex = RegExp(r'[أإآٱ]');
+
+  static final RegExp _whitespaceRegex = RegExp(r'\s+');
+
   final TextEditingController _searchController = TextEditingController();
+
   String _searchQuery = '';
 
   @override
@@ -34,12 +41,16 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     _searchController
       ..removeListener(_onSearchChanged)
       ..dispose();
+
     super.dispose();
   }
 
   void _onSearchChanged() {
     final nextQuery = _normalizeSearch(_searchController.text);
-    if (nextQuery == _searchQuery) return;
+
+    if (nextQuery == _searchQuery) {
+      return;
+    }
 
     setState(() {
       _searchQuery = nextQuery;
@@ -52,9 +63,13 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
 
     final currentInvoice =
         provider.invoiceByKey(widget.invoice.key) ?? widget.invoice;
+
     final colorScheme = Theme.of(context).colorScheme;
+
     final sortedItems = _sortedItemsWithOriginalIndexes(currentInvoice.items);
+
     final filteredItems = _filterItemsByCustomerName(sortedItems, _searchQuery);
+
     final hasSearchQuery = _searchQuery.isNotEmpty;
 
     return Directionality(
@@ -62,19 +77,22 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
       child: Scaffold(
         appBar: AppBar(title: Text(currentInvoice.title)),
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () =>
-              showInvoiceItemSheet(context, invoice: currentInvoice),
+          onPressed: () {
+            showInvoiceItemSheet(context, invoice: currentInvoice);
+          },
           icon: const Icon(Icons.add_rounded),
           label: const Text('إضافة عنصر'),
         ),
         body: Column(
           children: [
             TotalsHeader(invoice: currentInvoice),
+
             _CustomerSearchField(
               controller: _searchController,
               enabled: currentInvoice.items.isNotEmpty,
               onClear: _searchController.clear,
             ),
+
             Expanded(
               child: _buildItemsList(
                 context: context,
@@ -83,6 +101,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                 filteredItems: filteredItems,
               ),
             ),
+
             if (hasSearchQuery && filteredItems.isNotEmpty)
               SafeArea(
                 top: false,
@@ -140,11 +159,13 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
           },
           child: InvoiceItemTile(
             item: item,
-            onEdit: () => showInvoiceItemSheet(
-              context,
-              invoice: currentInvoice,
-              itemIndex: originalIndex,
-            ),
+            onEdit: () {
+              showInvoiceItemSheet(
+                context,
+                invoice: currentInvoice,
+                itemIndex: originalIndex,
+              );
+            },
           ),
         );
       },
@@ -155,7 +176,9 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     List<_IndexedInvoiceItem> sortedItems,
     String query,
   ) {
-    if (query.isEmpty) return sortedItems;
+    if (query.isEmpty) {
+      return sortedItems;
+    }
 
     return [
       for (final indexedItem in sortedItems)
@@ -190,12 +213,22 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
   }
 
   int _paymentSortRank(InvoiceItemModel item) {
-    if (!item.isPaid) return 0;
+    if (!item.isPaid) {
+      return 0;
+    }
+
     return 1;
   }
 
   String _normalizeSearch(String value) {
-    return value.trim().toLowerCase();
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(_arabicDiacriticsRegex, '')
+        .replaceAll(_alefVariantsRegex, 'ا')
+        .replaceAll('ى', 'ي')
+        .replaceAll('ة', 'ه')
+        .replaceAll(_whitespaceRegex, ' ');
   }
 
   Future<bool?> _confirmDeleteItem(BuildContext context) {
@@ -209,14 +242,18 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
             content: const Text('هل أنت متأكد من حذف هذا العنصر؟'),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
+                onPressed: () {
+                  Navigator.pop(dialogContext, false);
+                },
                 child: const Text('إلغاء'),
               ),
               FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.error,
                 ),
-                onPressed: () => Navigator.pop(dialogContext, true),
+                onPressed: () {
+                  Navigator.pop(dialogContext, true);
+                },
                 child: const Text('حذف'),
               ),
             ],
@@ -240,29 +277,103 @@ class _CustomerSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: ValueListenableBuilder<TextEditingValue>(
-        valueListenable: controller,
-        builder: (context, value, _) {
-          return TextField(
-            controller: controller,
-            enabled: enabled,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              labelText: 'بحث باسم العميل',
-              hintText: 'اكتب اسم العميل لعرض الفواتير المطابقة',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: value.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'مسح البحث',
-                      onPressed: onClear,
-                      icon: const Icon(Icons.close_rounded),
-                    ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          gradient: LinearGradient(
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: [
+              colorScheme.surface,
+              colorScheme.surfaceContainerHighest.withValues(alpha: .72),
+            ],
+          ),
+          border: Border.all(
+            color: enabled
+                ? colorScheme.primary.withValues(alpha: .22)
+                : colorScheme.outlineVariant.withValues(alpha: .45),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: colorScheme.primary.withValues(
+                alpha: theme.brightness == Brightness.dark ? .12 : .08,
+              ),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
-          );
-        },
+          ],
+        ),
+        child: ValueListenableBuilder<TextEditingValue>(
+          valueListenable: controller,
+          builder: (context, value, _) {
+            final hasText = value.text.trim().isNotEmpty;
+
+            return TextField(
+              controller: controller,
+              enabled: enabled,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: enabled
+                    ? colorScheme.onSurface
+                    : colorScheme.onSurfaceVariant.withValues(alpha: .62),
+                fontWeight: FontWeight.w600,
+              ),
+              cursorColor: colorScheme.primary,
+              textInputAction: TextInputAction.search,
+              textAlignVertical: TextAlignVertical.center,
+              decoration: InputDecoration(
+                labelText: 'بحث باسم العميل',
+                hintText: enabled
+                    ? 'اكتب اسم العميل لعرض العناصر المطابقة'
+                    : 'أضف عناصر أولاً لتفعيل البحث',
+                prefixIcon: Container(
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.search_rounded,
+                    color: enabled
+                        ? colorScheme.primary
+                        : colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                suffixIcon: hasText
+                    ? IconButton(
+                        tooltip: 'مسح البحث',
+                        onPressed: onClear,
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.transparent,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  borderSide: BorderSide.none,
+                ),
+                disabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(22),
+                  borderSide: BorderSide(
+                    color: colorScheme.primary.withValues(alpha: .65),
+                    width: 1.2,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -275,28 +386,40 @@ class _NoSearchResultsState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off_rounded, size: 64, color: color),
-            const SizedBox(height: 16),
-            Text(
-              'لا توجد نتائج مطابقة',
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
+    final theme = Theme.of(context);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 96),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.search_off_rounded, size: 56, color: color),
+                    const SizedBox(height: 12),
+                    Text(
+                      'لا توجد نتائج مطابقة',
+                      style: theme.textTheme.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'جرّب كتابة اسم العميل بطريقة مختلفة أو امسح البحث لعرض كل العناصر.',
+                      style: theme.textTheme.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'جرّب كتابة اسم العميل بطريقة مختلفة أو امسح البحث لعرض كل العناصر.',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
