@@ -1,7 +1,10 @@
+import 'package:fatora/core/utils/search_utils.dart';
+import 'package:fatora/widgets/customer_search_field.dart';
 import 'package:fatora/widgets/delete_background.dart';
 import 'package:fatora/widgets/empty_items_state.dart';
 import 'package:fatora/widgets/invoice_item_sheet.dart';
 import 'package:fatora/widgets/invoice_item_tile.dart';
+import 'package:fatora/widgets/nosearch_result_state.dart';
 import 'package:fatora/widgets/totals_header.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -20,12 +23,6 @@ class InvoiceDetailsScreen extends StatefulWidget {
 }
 
 class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
-  static final RegExp _arabicDiacriticsRegex = RegExp(r'[\u064B-\u065F\u0670]');
-
-  static final RegExp _alefVariantsRegex = RegExp(r'[أإآٱ]');
-
-  static final RegExp _whitespaceRegex = RegExp(r'\s+');
-
   final TextEditingController _searchController = TextEditingController();
 
   String _searchQuery = '';
@@ -46,11 +43,9 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
   }
 
   void _onSearchChanged() {
-    final nextQuery = _normalizeSearch(_searchController.text);
+    final nextQuery = SearchUtils.normalize(_searchController.text);
 
-    if (nextQuery == _searchQuery) {
-      return;
-    }
+    if (nextQuery == _searchQuery) return;
 
     setState(() {
       _searchQuery = nextQuery;
@@ -67,9 +62,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     final sortedItems = _sortedItemsWithOriginalIndexes(currentInvoice.items);
-
     final filteredItems = _filterItemsByCustomerName(sortedItems, _searchQuery);
-
     final hasSearchQuery = _searchQuery.isNotEmpty;
 
     return Directionality(
@@ -86,13 +79,14 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
         body: Column(
           children: [
             TotalsHeader(invoice: currentInvoice),
-
-            _CustomerSearchField(
+            CustomerSearchField(
               controller: _searchController,
               enabled: currentInvoice.items.isNotEmpty,
               onClear: _searchController.clear,
+              labelText: 'بحث باسم العميل',
+              enabledHintText: 'اكتب اسم العميل لعرض العناصر المطابقة',
+              disabledHintText: 'أضف عناصر أولاً لتفعيل البحث',
             ),
-
             Expanded(
               child: _buildItemsList(
                 context: context,
@@ -101,7 +95,6 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                 filteredItems: filteredItems,
               ),
             ),
-
             if (hasSearchQuery && filteredItems.isNotEmpty)
               SafeArea(
                 top: false,
@@ -133,7 +126,12 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     }
 
     if (filteredItems.isEmpty) {
-      return _NoSearchResultsState(color: colorScheme.primary);
+      return NoSearchResultsState(
+        color: colorScheme.primary,
+        title: 'لا توجد عناصر مطابقة',
+        message:
+            'جرّب كتابة اسم العميل بطريقة مختلفة أو امسح البحث لعرض كل العناصر.',
+      );
     }
 
     return ListView.separated(
@@ -176,17 +174,17 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     List<_IndexedInvoiceItem> sortedItems,
     String query,
   ) {
-    if (query.isEmpty) {
-      return sortedItems;
-    }
+    if (query.isEmpty) return sortedItems;
 
     return [
       for (final indexedItem in sortedItems)
-        if (_normalizeSearch(
-          indexedItem.item.displayCustomerName,
-        ).contains(query))
-          indexedItem,
+        if (_customerNameMatchesQuery(indexedItem.item, query)) indexedItem,
     ];
+  }
+
+  bool _customerNameMatchesQuery(InvoiceItemModel item, String query) {
+    final customerName = SearchUtils.normalize(item.displayCustomerName);
+    return customerName.contains(query);
   }
 
   List<_IndexedInvoiceItem> _sortedItemsWithOriginalIndexes(
@@ -213,22 +211,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
   }
 
   int _paymentSortRank(InvoiceItemModel item) {
-    if (!item.isPaid) {
-      return 0;
-    }
-
-    return 1;
-  }
-
-  String _normalizeSearch(String value) {
-    return value
-        .trim()
-        .toLowerCase()
-        .replaceAll(_arabicDiacriticsRegex, '')
-        .replaceAll(_alefVariantsRegex, 'ا')
-        .replaceAll('ى', 'ي')
-        .replaceAll('ة', 'ه')
-        .replaceAll(_whitespaceRegex, ' ');
+    return item.isPaid ? 1 : 0;
   }
 
   Future<bool?> _confirmDeleteItem(BuildContext context) {
@@ -257,166 +240,6 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                 child: const Text('حذف'),
               ),
             ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _CustomerSearchField extends StatelessWidget {
-  final TextEditingController controller;
-  final bool enabled;
-  final VoidCallback onClear;
-
-  const _CustomerSearchField({
-    required this.controller,
-    required this.enabled,
-    required this.onClear,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          gradient: LinearGradient(
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-            colors: [
-              colorScheme.surface,
-              colorScheme.surfaceContainerHighest.withValues(alpha: .72),
-            ],
-          ),
-          border: Border.all(
-            color: enabled
-                ? colorScheme.primary.withValues(alpha: .22)
-                : colorScheme.outlineVariant.withValues(alpha: .45),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: colorScheme.primary.withValues(
-                alpha: theme.brightness == Brightness.dark ? .12 : .08,
-              ),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: ValueListenableBuilder<TextEditingValue>(
-          valueListenable: controller,
-          builder: (context, value, _) {
-            final hasText = value.text.trim().isNotEmpty;
-
-            return TextField(
-              controller: controller,
-              enabled: enabled,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: enabled
-                    ? colorScheme.onSurface
-                    : colorScheme.onSurfaceVariant.withValues(alpha: .62),
-                fontWeight: FontWeight.w600,
-              ),
-              cursorColor: colorScheme.primary,
-              textInputAction: TextInputAction.search,
-              textAlignVertical: TextAlignVertical.center,
-              decoration: InputDecoration(
-                labelText: 'بحث باسم العميل',
-                hintText: enabled
-                    ? 'اكتب اسم العميل لعرض العناصر المطابقة'
-                    : 'أضف عناصر أولاً لتفعيل البحث',
-                prefixIcon: Container(
-                  margin: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary.withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    Icons.search_rounded,
-                    color: enabled
-                        ? colorScheme.primary
-                        : colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                suffixIcon: hasText
-                    ? IconButton(
-                        tooltip: 'مسح البحث',
-                        onPressed: onClear,
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      )
-                    : null,
-                filled: true,
-                fillColor: Colors.transparent,
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(22),
-                  borderSide: BorderSide.none,
-                ),
-                disabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(22),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(22),
-                  borderSide: BorderSide(
-                    color: colorScheme.primary.withValues(alpha: .65),
-                    width: 1.2,
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _NoSearchResultsState extends StatelessWidget {
-  final Color color;
-
-  const _NoSearchResultsState({required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 96),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.search_off_rounded, size: 56, color: color),
-                    const SizedBox(height: 12),
-                    Text(
-                      'لا توجد نتائج مطابقة',
-                      style: theme.textTheme.titleMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'جرّب كتابة اسم العميل بطريقة مختلفة أو امسح البحث لعرض كل العناصر.',
-                      style: theme.textTheme.bodyMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ),
         );
       },

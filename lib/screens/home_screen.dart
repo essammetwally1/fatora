@@ -1,3 +1,5 @@
+import 'package:fatora/core/utils/search_utils.dart';
+import 'package:fatora/widgets/nosearch_result_state.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,17 +7,56 @@ import '../core/utils/formatters.dart';
 import '../data/models/invoice_model.dart';
 import '../providers/invoice_provider.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/customer_search_field.dart';
 import '../widgets/invoice_card.dart';
 import 'invoice_details_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final TextEditingController _searchController = TextEditingController();
+
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController
+      ..removeListener(_onSearchChanged)
+      ..dispose();
+
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    final nextQuery = SearchUtils.normalize(_searchController.text);
+
+    if (nextQuery == _searchQuery) return;
+
+    setState(() {
+      _searchQuery = nextQuery;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<InvoiceProvider>();
     final invoices = provider.invoices;
     final colorScheme = Theme.of(context).colorScheme;
+
+    final sortedInvoices = _sortInvoicesNewestFirst(invoices);
+    final filteredInvoices = _filterInvoices(sortedInvoices, _searchQuery);
+    final hasSearchQuery = _searchQuery.isNotEmpty;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -42,54 +83,138 @@ class HomeScreen extends StatelessWidget {
         ),
         body: invoices.isEmpty
             ? _EmptyState(color: colorScheme.primary)
-            : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                itemCount: invoices.length + 2,
-                separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return _HomeTotalsSection(
+            : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: _HomeTotalsSection(
                       totals: _InvoicesTotals.fromInvoices(invoices),
-                    );
-                  }
-
-                  if (index == 1) {
-                    return _InvoicesSectionHeader(
-                      invoiceCount: invoices.length,
-                    );
-                  }
-
-                  final invoiceIndex = index - 2;
-                  final invoice = invoices[invoiceIndex];
-
-                  return Dismissible(
-                    key: ValueKey(invoice.key ?? invoiceIndex),
-                    direction: DismissDirection.endToStart,
-                    confirmDismiss: (_) => _confirmDeleteInvoice(context),
-                    background: const _DeleteBackground(),
-                    onDismissed: (_) {
-                      context.read<InvoiceProvider>().deleteInvoice(invoice);
-                    },
-                    child: InvoiceCard(
-                      invoice: invoice,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                InvoiceDetailsScreen(invoice: invoice),
-                          ),
-                        );
-                      },
-                      onEdit: () =>
-                          _openInvoiceNameDialog(context, invoice: invoice),
-                      onExport: () => _showPdfExportComingSoon(context),
                     ),
-                  );
-                },
+                  ),
+                  CustomerSearchField(
+                    controller: _searchController,
+                    enabled: invoices.isNotEmpty,
+                    onClear: _searchController.clear,
+                    labelText: 'بحث في الفواتير',
+                    enabledHintText: 'اكتب اسم الفاتورة فقط',
+                    disabledHintText: 'أضف فواتير أولاً لتفعيل البحث',
+                  ),
+                  Expanded(
+                    child: _buildInvoicesList(
+                      context: context,
+                      colorScheme: colorScheme,
+                      invoices: filteredInvoices,
+                      totalInvoiceCount: invoices.length,
+                      hasSearchQuery: hasSearchQuery,
+                    ),
+                  ),
+                  if (hasSearchQuery && filteredInvoices.isNotEmpty)
+                    SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: Text(
+                          'تم عرض ${filteredInvoices.length} نتيجة مطابقة',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: colorScheme.onSurfaceVariant),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
               ),
       ),
     );
+  }
+
+  Widget _buildInvoicesList({
+    required BuildContext context,
+    required ColorScheme colorScheme,
+    required List<InvoiceModel> invoices,
+    required int totalInvoiceCount,
+    required bool hasSearchQuery,
+  }) {
+    if (invoices.isEmpty) {
+      return NoSearchResultsState(
+        color: colorScheme.primary,
+        title: 'لا توجد فواتير مطابقة',
+        message:
+            'جرّب كتابة اسم الفاتورة بطريقة مختلفة أو امسح البحث لعرض كل الفواتير.',
+      );
+    }
+
+    return ListView.separated(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      itemCount: invoices.length + 1,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return _InvoicesSectionHeader(
+            invoiceCount: hasSearchQuery ? invoices.length : totalInvoiceCount,
+          );
+        }
+
+        final invoice = invoices[index - 1];
+
+        return Dismissible(
+          key: ValueKey(invoice.key ?? '${invoice.title}-$index'),
+          direction: DismissDirection.endToStart,
+          confirmDismiss: (_) => _confirmDeleteInvoice(context),
+          background: const _DeleteBackground(),
+          onDismissed: (_) {
+            context.read<InvoiceProvider>().deleteInvoice(invoice);
+          },
+          child: InvoiceCard(
+            invoice: invoice,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => InvoiceDetailsScreen(invoice: invoice),
+                ),
+              );
+            },
+            onEdit: () => _openInvoiceNameDialog(context, invoice: invoice),
+            onExport: () => _showPdfExportComingSoon(context),
+          ),
+        );
+      },
+    );
+  }
+
+  List<InvoiceModel> _sortInvoicesNewestFirst(List<InvoiceModel> invoices) {
+    final sorted = List<InvoiceModel>.of(invoices);
+
+    sorted.sort((a, b) {
+      final aKey = a.key;
+      final bKey = b.key;
+
+      if (aKey is int && bKey is int) {
+        return bKey.compareTo(aKey);
+      }
+
+      return 0;
+    });
+
+    return sorted;
+  }
+
+  List<InvoiceModel> _filterInvoices(
+    List<InvoiceModel> invoices,
+    String query,
+  ) {
+    if (query.isEmpty) return invoices;
+
+    return [
+      for (final invoice in invoices)
+        if (_invoiceTitleMatchesQuery(invoice, query)) invoice,
+    ];
+  }
+
+  bool _invoiceTitleMatchesQuery(InvoiceModel invoice, String query) {
+    final title = SearchUtils.normalize(invoice.title);
+    return title.contains(query);
   }
 
   void _showPdfExportComingSoon(BuildContext context) {
@@ -139,9 +264,7 @@ class HomeScreen extends StatelessWidget {
       builder: (_) => _InvoiceNameDialog(initialTitle: invoice?.title),
     );
 
-    if (title == null || !context.mounted) {
-      return;
-    }
+    if (title == null || !context.mounted) return;
 
     final provider = context.read<InvoiceProvider>();
 
@@ -223,9 +346,7 @@ class _HomeTotalsSection extends StatelessWidget {
                       size: 23,
                     ),
                   ),
-
                   const SizedBox(width: 10),
-
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -252,9 +373,7 @@ class _HomeTotalsSection extends StatelessWidget {
                   ),
                 ],
               ),
-
               const SizedBox(height: 12),
-
               Text(
                 Formatters.formatMoney(totals.total),
                 maxLines: 1,
@@ -265,9 +384,7 @@ class _HomeTotalsSection extends StatelessWidget {
                   height: 1.1,
                 ),
               ),
-
               const SizedBox(height: 10),
-
               Row(
                 children: [
                   Expanded(
@@ -461,14 +578,12 @@ class _InvoiceNameDialogState extends State<_InvoiceNameDialog> {
   @override
   void initState() {
     super.initState();
-
     _controller = TextEditingController(text: widget.initialTitle ?? '');
   }
 
   @override
   void dispose() {
     _controller.dispose();
-
     super.dispose();
   }
 
@@ -513,9 +628,7 @@ class _InvoiceNameDialogState extends State<_InvoiceNameDialog> {
   }
 
   void _submit() {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
     FocusScope.of(context).unfocus();
     Navigator.pop(context, _controller.text.trim());

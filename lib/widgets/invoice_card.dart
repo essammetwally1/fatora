@@ -1,3 +1,4 @@
+import 'package:fatora/app/app_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../core/utils/formatters.dart';
@@ -17,10 +18,22 @@ class InvoiceCard extends StatelessWidget {
     required this.onExport,
   });
 
+  bool get _hasUnpaidItems {
+    return invoice.items.any((item) => !item.isPaid && item.remainingValue > 0);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    final iconBackgroundColor = _hasUnpaidItems
+        ? Colors.red.withValues(alpha: .08)
+        : Colors.white.withValues(alpha: .16);
+
+    final iconColor = _hasUnpaidItems
+        ? AppTheme.red.withValues(alpha: .7)
+        : Colors.white;
 
     return Card(
       elevation: 0,
@@ -37,12 +50,14 @@ class InvoiceCard extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .16),
+                  color: iconBackgroundColor,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Icon(Icons.receipt_long, color: Colors.white),
+                child: Icon(Icons.receipt_long, color: iconColor),
               ),
+
               const SizedBox(width: 14),
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,7 +81,9 @@ class InvoiceCard extends StatelessWidget {
                   ],
                 ),
               ),
+
               const SizedBox(width: 8),
+
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
