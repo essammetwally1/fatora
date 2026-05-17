@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../core/utils/formatters.dart';
-import '../../data/models/invoice_model.dart';
+import '../../../core/utils/formatters.dart';
+import '../../../data/models/invoice_model.dart';
 import 'total_box.dart';
 
 class TotalsHeader extends StatelessWidget {

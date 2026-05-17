@@ -1,8 +1,8 @@
 import 'package:fatora/app/app_theme.dart';
 import 'package:flutter/material.dart';
 
-import '../../core/utils/formatters.dart';
-import '../../data/models/invoice_item_model.dart';
+import '../../../core/utils/formatters.dart';
+import '../../../data/models/invoice_item_model.dart';
 
 class InvoiceItemTile extends StatelessWidget {
   final InvoiceItemModel item;

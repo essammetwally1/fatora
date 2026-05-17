@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../core/utils/formatters.dart';
-import '../data/models/invoice_item_model.dart';
+import '../../core/utils/formatters.dart';
+import '../../data/models/invoice_item_model.dart';
 
 class InvoiceItemCard extends StatelessWidget {
   final InvoiceItemModel item;

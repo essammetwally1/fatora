@@ -1,11 +1,11 @@
 import 'package:fatora/core/utils/search_utils.dart';
 import 'package:fatora/widgets/customer_search_field.dart';
 import 'package:fatora/widgets/delete_background.dart';
-import 'package:fatora/widgets/empty_items_state.dart';
-import 'package:fatora/widgets/invoice_item_sheet.dart';
-import 'package:fatora/widgets/invoice_item_tile.dart';
+import 'package:fatora/widgets/invoice/empty_items_state.dart';
+import 'package:fatora/widgets/invoice/invoice_item_sheet.dart';
+import 'package:fatora/widgets/invoice/invoice_item_tile.dart';
 import 'package:fatora/widgets/nosearch_result_state.dart';
-import 'package:fatora/widgets/totals_header.dart';
+import 'package:fatora/widgets/invoice/totals_header.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
