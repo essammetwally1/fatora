@@ -16,7 +16,7 @@ class InvoiceItemCard extends StatelessWidget {
     final statusText = item.isPaid
         ? 'تم الدفع'
         : item.hasPartialPayment
-        ? 'مدفوع جزئياً'
+        ? 'باقي'
         : 'غير مدفوع';
 
     final statusColor = item.isPaid

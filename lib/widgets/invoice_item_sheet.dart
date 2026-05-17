@@ -65,15 +65,16 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
   bool get _canAdjustPartialPayment =>
       _isEditing && !(widget.existing?.isPaid ?? false);
 
-  double get _basePaidAmount => widget.existing?.paidValue ?? 0;
+  double get _basePaidAmount => widget.existing?.paidValue ?? 0.0;
 
-  double get _previewPrice => _parsePrice(_priceController.text) ?? 0;
+  double get _previewPrice => _parsePrice(_priceController.text) ?? 0.0;
 
   double get _previewPaidAmount {
     if (_isPaid) return _previewPrice;
 
     final adjustment =
-        _parseSignedAmount(_paymentAdjustmentController.text) ?? 0;
+        _parseSignedAmount(_paymentAdjustmentController.text) ?? 0.0;
+
     final paidAmount = _canAdjustPartialPayment
         ? _basePaidAmount + adjustment
         : _basePaidAmount;
@@ -112,13 +113,17 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
   void dispose() {
     _customerController.dispose();
     _itemController.dispose();
+
     _priceController
       ..removeListener(_refreshPreview)
       ..dispose();
+
     _paymentAdjustmentController
       ..removeListener(_refreshPreview)
       ..dispose();
+
     _noteController.dispose();
+
     super.dispose();
   }
 
@@ -150,7 +155,9 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 18),
+
                 Text(
                   _isEditing ? 'تعديل عنصر' : 'إضافة عنصر',
                   style: Theme.of(
@@ -158,6 +165,7 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
+
                 const SizedBox(height: 20),
 
                 AppTextFormField(
@@ -171,9 +179,15 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
 
                 AppTextFormField(
                   controller: _itemController,
-                  label: 'اسم الصنف (اختياري)',
+                  label: 'اسم الصنف',
                   icon: Icons.inventory_2_outlined,
                   textInputAction: TextInputAction.next,
+                  validator: (value) {
+                    if ((value ?? '').trim().isEmpty) {
+                      return 'اسم الصنف مطلوب';
+                    }
+                    return null;
+                  },
                 ),
 
                 const SizedBox(height: 12),
@@ -198,7 +212,6 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
                     return null;
                   },
                 ),
-
                 if (_canAdjustPartialPayment) ...[
                   const SizedBox(height: 12),
                   AppTextFormField(
@@ -211,23 +224,27 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
                     ),
                     textInputAction: TextInputAction.next,
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9+\-.,]')),
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9+.,-]')),
                     ],
                     validator: (value) {
-                      final adjustment = _parseSignedAmount(value ?? '') ?? 0;
-                      final price = _parsePrice(_priceController.text) ?? 0;
+                      final text = value ?? '';
+                      final adjustment = _parseSignedAmount(text) ?? 0.0;
+                      final price = _parsePrice(_priceController.text) ?? 0.0;
                       final paidAmount = _basePaidAmount + adjustment;
 
-                      if ((value ?? '').trim().isNotEmpty &&
-                          _parseSignedAmount(value ?? '') == null) {
+                      if (text.trim().isNotEmpty &&
+                          _parseSignedAmount(text) == null) {
                         return 'اكتب مبلغ صحيح مثل +50 أو -20';
                       }
+
                       if (paidAmount < 0) {
                         return 'لا يمكن أن يكون المدفوع أقل من صفر';
                       }
+
                       if (paidAmount > price) {
                         return 'لا يمكن أن يكون المدفوع أكبر من السعر';
                       }
+
                       return null;
                     },
                   ),
@@ -283,17 +300,16 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
 
     FocusScope.of(context).unfocus();
 
+    final price = _parsePrice(_priceController.text)!;
+
     final item = InvoiceItemModel(
       date: widget.existing?.date,
-      customerName: _customerController.text.trim(),
-      itemName: _nullableText(_itemController.text),
-      price: _parsePrice(_priceController.text)!,
+      customerName: _nullableText(_customerController.text),
+      itemName: _itemController.text.trim(),
+      price: price,
       note: _nullableText(_noteController.text),
-      isPaid:
-          _isPaid || _previewPaidAmount >= _parsePrice(_priceController.text)!,
-      paidAmount: _isPaid
-          ? _parsePrice(_priceController.text)!
-          : _previewPaidAmount,
+      isPaid: _isPaid || _previewPaidAmount >= price,
+      paidAmount: _isPaid ? price : _previewPaidAmount,
     );
 
     final provider = context.read<InvoiceProvider>();

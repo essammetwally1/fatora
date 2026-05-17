@@ -11,7 +11,7 @@ class InvoiceItemModel extends HiveObject {
   String? customerName;
 
   @HiveField(2)
-  String? itemName;
+  String itemName;
 
   @HiveField(3)
   double price;
@@ -28,7 +28,7 @@ class InvoiceItemModel extends HiveObject {
   InvoiceItemModel({
     DateTime? date,
     this.customerName,
-    this.itemName,
+    required this.itemName,
     required this.price,
     this.note,
     required this.isPaid,
@@ -36,6 +36,7 @@ class InvoiceItemModel extends HiveObject {
   }) : date = date ?? DateTime.now(),
        paidAmount = paidAmount ?? (isPaid ? price : 0.0) {
     _normalizePaymentState();
+    itemName = itemName.trim();
   }
 
   double get paidValue => isPaid ? price : _clampPayment(paidAmount, price);
@@ -50,8 +51,8 @@ class InvoiceItemModel extends HiveObject {
   }
 
   String get displayItemName {
-    final value = itemName?.trim();
-    return value == null || value.isEmpty ? 'بدون اسم صنف' : value;
+    final value = itemName.trim();
+    return value.isEmpty ? 'بدون اسم صنف' : value;
   }
 
   String get displayNote {
