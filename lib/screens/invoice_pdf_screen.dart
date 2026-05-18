@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:fatora/data/models/invoice_model.dart';
 import 'package:fatora/data/services/pdf/pdf_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:printing/printing.dart';
 
 class InvoicePdfScreen extends StatefulWidget {
@@ -103,14 +104,30 @@ class _InvoicePdfScreenState extends State<InvoicePdfScreen> {
               onPressed: _isSaving ? null : _savePdf,
               icon: _isSaving
                   ? const _SmallLoader()
-                  : const Icon(Icons.download_rounded),
+                  : SvgPicture.asset(
+                      'assets/icons/download.svg',
+                      width: 24,
+                      height: 24,
+                      colorFilter: ColorFilter.mode(
+                        theme.colorScheme.onSurface,
+                        BlendMode.srcIn,
+                      ),
+                    ),
             ),
             IconButton(
               tooltip: 'مشاركة PDF',
               onPressed: _isSharing ? null : _sharePdf,
               icon: _isSharing
                   ? const _SmallLoader()
-                  : const Icon(Icons.ios_share_rounded),
+                  : SvgPicture.asset(
+                      'assets/icons/export.svg',
+                      width: 24,
+                      height: 24,
+                      colorFilter: ColorFilter.mode(
+                        theme.colorScheme.onSurface,
+                        BlendMode.srcIn,
+                      ),
+                    ),
             ),
           ],
         ),
