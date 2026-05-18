@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../data/services/hive_service.dart';
+import '../data/services/storage/hive_service.dart';
 
 class SettingsProvider extends ChangeNotifier {
   SettingsProvider() {

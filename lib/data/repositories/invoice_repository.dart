@@ -1,6 +1,6 @@
 import '../models/invoice_item_model.dart';
 import '../models/invoice_model.dart';
-import '../services/hive_service.dart';
+import '../services/storage/hive_service.dart';
 
 class InvoiceRepository {
   List<InvoiceModel> getInvoices() {

@@ -35,6 +35,10 @@ class InvoiceCard extends StatelessWidget {
         ? AppTheme.red.withValues(alpha: .7)
         : Colors.white;
 
+    final invoiceTitle = invoice.title.trim().isEmpty
+        ? 'فاتورة بدون عنوان'
+        : invoice.title.trim();
+
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
@@ -43,102 +47,100 @@ class InvoiceCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: SizedBox(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: iconBackgroundColor,
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Icon(Icons.receipt_long, color: iconColor, size: 21),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: iconBackgroundColor,
+                  borderRadius: BorderRadius.circular(13),
                 ),
+                child: Icon(Icons.receipt_long, color: iconColor, size: 21),
+              ),
 
-                const SizedBox(width: 10),
+              const SizedBox(width: 10),
 
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        invoice.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          height: 1.15,
-                        ),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      invoiceTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        height: 1.15,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${invoice.items.length} عنصر',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: Colors.white.withValues(alpha: .78),
-                          fontSize: 11,
-                          height: 1.1,
-                        ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${invoice.items.length} عنصر',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withValues(alpha: .78),
+                        fontSize: 11,
+                        height: 1.1,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+              ),
 
-                const SizedBox(width: 10),
+              const SizedBox(width: 10),
 
-                SizedBox(
-                  width: 92,
-                  height: 52,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          _SmallCardIconButton(
-                            tooltip: 'تصدير PDF قريباً',
-                            icon: Icons.picture_as_pdf_outlined,
-                            onPressed: onExport,
-                          ),
-                          const SizedBox(width: 10),
-                          _SmallCardIconButton(
-                            tooltip: 'تعديل الاسم',
-                            icon: Icons.edit_outlined,
-                            onPressed: onEdit,
-                          ),
-                        ],
-                      ),
-                      SizedBox(
-                        width: 92,
-                        height: 18,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            Formatters.formatMoney(invoice.total),
-                            maxLines: 1,
-                            textAlign: TextAlign.end,
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              height: 1,
-                            ),
+              SizedBox(
+                width: 92,
+                height: 52,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        _SmallCardIconButton(
+                          tooltip: 'خيارات PDF',
+                          icon: Icons.picture_as_pdf_outlined,
+                          onPressed: onExport,
+                        ),
+                        const SizedBox(width: 10),
+                        _SmallCardIconButton(
+                          tooltip: 'تعديل الاسم',
+                          icon: Icons.edit_outlined,
+                          onPressed: onEdit,
+                        ),
+                      ],
+                    ),
+                    SizedBox(
+                      width: 92,
+                      height: 18,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          Formatters.formatMoney(invoice.total),
+                          maxLines: 1,
+                          textAlign: TextAlign.end,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            height: 1,
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

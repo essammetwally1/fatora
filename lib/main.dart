@@ -3,7 +3,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
 import 'app/app_theme.dart';
-import 'data/services/hive_service.dart';
+import 'data/services/storage/hive_service.dart';
 import 'providers/invoice_provider.dart';
 import 'providers/settings_provider.dart';
 import 'screens/home_screen.dart';
