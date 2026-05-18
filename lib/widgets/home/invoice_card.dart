@@ -108,7 +108,7 @@ class InvoiceCard extends StatelessWidget {
                             icon: Icons.picture_as_pdf_outlined,
                             onPressed: onExport,
                           ),
-                          const SizedBox(width: 2),
+                          const SizedBox(width: 10),
                           _SmallCardIconButton(
                             tooltip: 'تعديل الاسم',
                             icon: Icons.edit_outlined,
@@ -167,7 +167,7 @@ class _SmallCardIconButton extends StatelessWidget {
         onPressed: onPressed,
         padding: EdgeInsets.zero,
         visualDensity: VisualDensity.compact,
-        icon: Icon(icon, color: Colors.white, size: 17),
+        icon: Icon(icon, color: Colors.white, size: 25),
       ),
     );
   }
