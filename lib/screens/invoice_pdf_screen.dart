@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:fatora/data/models/invoice_model.dart';
 import 'package:fatora/data/services/pdf/pdf_service.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/svg.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:printing/printing.dart';
 
 class InvoicePdfScreen extends StatefulWidget {
@@ -16,10 +16,14 @@ class InvoicePdfScreen extends StatefulWidget {
 }
 
 class _InvoicePdfScreenState extends State<InvoicePdfScreen> {
-  late final Future<Uint8List> _pdfFuture;
+  static const String _downloadIcon = 'assets/icons/download.svg';
+  static const String _exportIcon = 'assets/icons/export.svg';
+
+  late Future<Uint8List> _pdfFuture;
 
   bool _isSaving = false;
   bool _isSharing = false;
+  bool _isPrinting = false;
 
   @override
   void initState() {
@@ -33,29 +37,29 @@ class _InvoicePdfScreenState extends State<InvoicePdfScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final result = await PdfService.saveInvoice(widget.invoice);
+      final bytes = await _pdfFuture;
 
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('تم حفظ الملف: ${result.fileName}'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      final result = await PdfService.saveInvoiceBytes(
+        invoice: widget.invoice,
+        bytes: bytes,
       );
-    } catch (error) {
+
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('حدث خطأ أثناء حفظ الملف: $error'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      _showSnackBar(
+        icon: Icons.check_circle_rounded,
+        message: 'تم حفظ الملف: ${result.fileName}',
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      _showSnackBar(
+        icon: Icons.error_rounded,
+        message: 'حدث خطأ أثناء حفظ ملف PDF',
+        isError: true,
       );
     } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -65,70 +69,120 @@ class _InvoicePdfScreenState extends State<InvoicePdfScreen> {
     setState(() => _isSharing = true);
 
     try {
-      await PdfService.shareInvoice(widget.invoice);
-    } catch (error) {
+      final bytes = await _pdfFuture;
+
+      await PdfService.shareInvoiceBytes(invoice: widget.invoice, bytes: bytes);
+
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('حدث خطأ أثناء مشاركة الملف: $error'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      _showSnackBar(
+        icon: Icons.ios_share_rounded,
+        message: 'تم تجهيز الفاتورة للمشاركة بنجاح',
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      _showSnackBar(
+        icon: Icons.error_rounded,
+        message: 'حدث خطأ أثناء مشاركة ملف PDF',
+        isError: true,
       );
     } finally {
-      if (mounted) {
-        setState(() => _isSharing = false);
-      }
+      if (mounted) setState(() => _isSharing = false);
     }
+  }
+
+  Future<void> _printPdf() async {
+    if (_isPrinting) return;
+
+    setState(() => _isPrinting = true);
+
+    try {
+      final bytes = await _pdfFuture;
+
+      await PdfService.printInvoiceBytes(invoice: widget.invoice, bytes: bytes);
+
+      if (!mounted) return;
+
+      _showSnackBar(icon: Icons.print_rounded, message: 'تم فتح نافذة الطباعة');
+    } catch (_) {
+      if (!mounted) return;
+
+      _showSnackBar(
+        icon: Icons.error_rounded,
+        message: 'حدث خطأ أثناء الطباعة',
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _isPrinting = false);
+    }
+  }
+
+  void _retryBuildPdf() {
+    setState(() {
+      _pdfFuture = PdfService.buildInvoicePdf(widget.invoice);
+    });
+  }
+
+  void _showSnackBar({
+    required IconData icon,
+    required String message,
+    bool isError = false,
+  }) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        _PdfSnackBar.build(
+          context: context,
+          icon: icon,
+          message: message,
+          isError: isError,
+        ),
+      );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     final invoiceTitle = widget.invoice.title.trim().isEmpty
-        ? 'فاتورة'
+        ? 'معاينة الفاتورة'
         : widget.invoice.title.trim();
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: theme.colorScheme.surface,
         appBar: AppBar(
+          centerTitle: false,
+          titleSpacing: 8,
           title: Text(
             invoiceTitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w900),
           ),
           actions: [
-            IconButton(
+            _SvgActionButton(
               tooltip: 'حفظ PDF',
-              onPressed: _isSaving ? null : _savePdf,
-              icon: _isSaving
-                  ? const _SmallLoader()
-                  : SvgPicture.asset(
-                      'assets/icons/download.svg',
-                      width: 24,
-                      height: 24,
-                      colorFilter: ColorFilter.mode(
-                        theme.colorScheme.onSurface,
-                        BlendMode.srcIn,
-                      ),
-                    ),
+              asset: _downloadIcon,
+              isLoading: _isSaving,
+              onPressed: _savePdf,
+            ),
+            _SvgActionButton(
+              tooltip: 'مشاركة PDF',
+              asset: _exportIcon,
+              isLoading: _isSharing,
+              onPressed: _sharePdf,
             ),
             IconButton(
-              tooltip: 'مشاركة PDF',
-              onPressed: _isSharing ? null : _sharePdf,
-              icon: _isSharing
+              tooltip: 'طباعة',
+              onPressed: _isPrinting ? null : _printPdf,
+              icon: _isPrinting
                   ? const _SmallLoader()
-                  : SvgPicture.asset(
-                      'assets/icons/export.svg',
-                      width: 24,
-                      height: 24,
-                      colorFilter: ColorFilter.mode(
-                        theme.colorScheme.onSurface,
-                        BlendMode.srcIn,
-                      ),
-                    ),
+                  : Icon(Icons.print_rounded, color: theme.colorScheme.primary),
             ),
+            const SizedBox(width: 4),
           ],
         ),
         body: FutureBuilder<Uint8List>(
@@ -142,13 +196,7 @@ class _InvoicePdfScreenState extends State<InvoicePdfScreen> {
               return _PdfErrorView(
                 message: 'تعذر إنشاء ملف PDF',
                 details: snapshot.error.toString(),
-                onRetry: () {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      builder: (_) => InvoicePdfScreen(invoice: widget.invoice),
-                    ),
-                  );
-                },
+                onRetry: _retryBuildPdf,
               );
             }
 
@@ -157,33 +205,24 @@ class _InvoicePdfScreenState extends State<InvoicePdfScreen> {
             if (bytes == null || bytes.isEmpty) {
               return _PdfErrorView(
                 message: 'ملف PDF فارغ',
-                details: 'لم يتم إنشاء بيانات للفاتورة.',
-                onRetry: () {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      builder: (_) => InvoicePdfScreen(invoice: widget.invoice),
-                    ),
-                  );
-                },
+                details: 'لم يتم إنشاء أي بيانات للفاتورة.',
+                onRetry: _retryBuildPdf,
               );
             }
 
             return PdfPreview(
               build: (_) async => bytes,
-              canChangeOrientation: false,
               canChangePageFormat: false,
+              canChangeOrientation: false,
               canDebug: false,
               allowPrinting: false,
               allowSharing: false,
-              pdfFileName: PdfService.fileNameForInvoice(widget.invoice),
               loadingWidget: const Center(child: CircularProgressIndicator()),
               onError: (context, error) {
                 return _PdfErrorView(
                   message: 'تعذر عرض ملف PDF',
                   details: error.toString(),
-                  onRetry: () {
-                    setState(() {});
-                  },
+                  onRetry: _retryBuildPdf,
                 );
               },
               actionBarTheme: PdfActionBarTheme(
@@ -194,6 +233,41 @@ class _InvoicePdfScreenState extends State<InvoicePdfScreen> {
           },
         ),
       ),
+    );
+  }
+}
+
+class _SvgActionButton extends StatelessWidget {
+  final String tooltip;
+  final String asset;
+  final bool isLoading;
+  final VoidCallback onPressed;
+
+  const _SvgActionButton({
+    required this.tooltip,
+    required this.asset,
+    required this.isLoading,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: isLoading ? null : onPressed,
+      icon: isLoading
+          ? const _SmallLoader()
+          : SvgPicture.asset(
+              asset,
+              width: 23,
+              height: 23,
+              colorFilter: ColorFilter.mode(
+                theme.colorScheme.primary,
+                BlendMode.srcIn,
+              ),
+            ),
     );
   }
 }
@@ -235,7 +309,7 @@ class _PdfErrorView extends StatelessWidget {
             elevation: 0,
             color: theme.colorScheme.errorContainer,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(22),
             ),
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -245,7 +319,7 @@ class _PdfErrorView extends StatelessWidget {
                   Icon(
                     Icons.picture_as_pdf_rounded,
                     color: theme.colorScheme.onErrorContainer,
-                    size: 42,
+                    size: 44,
                   ),
                   const SizedBox(height: 12),
                   Text(
@@ -253,7 +327,7 @@ class _PdfErrorView extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: theme.textTheme.titleMedium?.copyWith(
                       color: theme.colorScheme.onErrorContainer,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -274,6 +348,53 @@ class _PdfErrorView extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PdfSnackBar {
+  const _PdfSnackBar._();
+
+  static SnackBar build({
+    required BuildContext context,
+    required IconData icon,
+    required String message,
+    bool isError = false,
+  }) {
+    final theme = Theme.of(context);
+
+    final backgroundColor = isError
+        ? theme.colorScheme.error
+        : theme.colorScheme.primary;
+
+    final foregroundColor = isError
+        ? theme.colorScheme.onError
+        : theme.colorScheme.onPrimary;
+
+    return SnackBar(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: backgroundColor,
+      elevation: 0,
+      margin: const EdgeInsets.all(14),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      content: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Row(
+          children: [
+            Icon(icon, color: foregroundColor),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: foregroundColor,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -29,9 +29,47 @@ class PdfService {
   static Future<void> shareInvoice(InvoiceModel invoice) async {
     final bytes = await buildInvoicePdf(invoice);
 
+    await shareInvoiceBytes(invoice: invoice, bytes: bytes);
+  }
+
+  static Future<void> printInvoice(InvoiceModel invoice) async {
+    final bytes = await buildInvoicePdf(invoice);
+
+    await printInvoiceBytes(invoice: invoice, bytes: bytes);
+  }
+
+  static Future<PdfSaveResult> saveInvoiceBytes({
+    required InvoiceModel invoice,
+    required Uint8List bytes,
+  }) async {
+    final fileName = fileNameForInvoice(invoice);
+
+    final savedPath = await PdfFileSaver.save(bytes: bytes, fileName: fileName);
+
+    return PdfSaveResult(
+      fileName: fileName,
+      savedPath: savedPath,
+      bytes: bytes,
+    );
+  }
+
+  static Future<void> shareInvoiceBytes({
+    required InvoiceModel invoice,
+    required Uint8List bytes,
+  }) async {
     await Printing.sharePdf(
       bytes: bytes,
       filename: fileNameForInvoice(invoice),
+    );
+  }
+
+  static Future<void> printInvoiceBytes({
+    required InvoiceModel invoice,
+    required Uint8List bytes,
+  }) async {
+    await Printing.layoutPdf(
+      name: fileNameForInvoice(invoice),
+      onLayout: (_) async => bytes,
     );
   }
 

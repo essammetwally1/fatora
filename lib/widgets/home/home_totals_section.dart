@@ -23,9 +23,9 @@ class HomeTotalsSection extends StatelessWidget {
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
           colors: [
-            colorScheme.primary,
-            colorScheme.primary.withValues(alpha: .82),
-            colorScheme.secondary.withValues(alpha: .72),
+            colorScheme.primary.withValues(alpha: .8),
+            colorScheme.primary.withValues(alpha: .9),
+            colorScheme.primary.withValues(alpha: .6),
           ],
         ),
         boxShadow: [

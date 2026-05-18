@@ -65,7 +65,7 @@ class InvoicesList extends StatelessWidget {
             onTap: () => _openInvoiceDetails(context, invoice),
             onEdit: () => onEditInvoice(invoice),
             onExport: () {
-              showInvoicePdfActionsSheet(context: context, invoice: invoice);
+              InvoicePdfActionsSheet.show(context: context, invoice: invoice);
             },
           ),
         );
