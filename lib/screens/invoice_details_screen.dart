@@ -8,7 +8,7 @@ import 'package:fatora/widgets/nosearch_result_state.dart';
 import 'package:fatora/widgets/invoice/totals_header.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'package:fatora/widgets/liquid_floating_action_button.dart';
 import '../data/models/invoice_item_model.dart';
 import '../data/models/invoice_model.dart';
 import '../providers/invoice_provider.dart';
@@ -69,12 +69,12 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(title: Text(currentInvoice.title)),
-        floatingActionButton: FloatingActionButton.extended(
+        floatingActionButton: LiquidFloatingActionButton(
           onPressed: () {
             showInvoiceItemSheet(context, invoice: currentInvoice);
           },
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('إضافة عنصر'),
+          label: 'إضافة عنصر',
+          icon: Icons.add_rounded,
         ),
         body: Column(
           children: [

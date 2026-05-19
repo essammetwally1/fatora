@@ -106,7 +106,9 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
 
     _noteController = TextEditingController(text: existing?.note ?? '');
 
-    _isPaid = existing?.isPaid ?? false;
+    // New item starts as paid by default.
+    // Existing item keeps its old value.
+    _isPaid = existing?.isPaid ?? true;
   }
 
   @override
@@ -129,6 +131,13 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    final paidColor = Colors.green;
+    final unpaidColor = colorScheme.error;
+    final activeColor = _isPaid ? paidColor : unpaidColor;
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Padding(
@@ -160,9 +169,9 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
 
                 Text(
                   _isEditing ? 'تعديل عنصر' : 'إضافة عنصر',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
 
@@ -212,11 +221,12 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
                     return null;
                   },
                 ),
+
                 if (_canAdjustPartialPayment) ...[
                   const SizedBox(height: 12),
                   AppTextFormField(
                     controller: _paymentAdjustmentController,
-                    label: 'تعديل المدفوع (+ أو -)',
+                    label: 'تعديل المدفوع (-)',
                     icon: Icons.add_card_outlined,
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
@@ -268,14 +278,12 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
 
                 const SizedBox(height: 12),
 
-                CheckboxListTile(
+                _PaidCheckboxCard(
                   value: _isPaid,
-                  title: const Text('تم الدفع'),
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
+                  activeColor: activeColor,
                   onChanged: (value) {
                     setState(() {
-                      _isPaid = value ?? false;
+                      _isPaid = value ?? true;
                     });
                   },
                 ),
@@ -351,6 +359,87 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
 
   void _refreshPreview() {
     if (mounted) setState(() {});
+  }
+}
+
+class _PaidCheckboxCard extends StatelessWidget {
+  final bool value;
+  final Color activeColor;
+  final ValueChanged<bool?> onChanged;
+
+  const _PaidCheckboxCard({
+    required this.value,
+    required this.activeColor,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return InkWell(
+      onTap: () => onChanged(!value),
+      borderRadius: BorderRadius.circular(18),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: activeColor.withValues(alpha: .08),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: activeColor.withValues(alpha: .28),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          children: [
+            Checkbox(
+              value: value,
+              activeColor: activeColor,
+              checkColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
+              side: BorderSide(
+                color: activeColor.withValues(alpha: .75),
+                width: 1.6,
+              ),
+              onChanged: onChanged,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value ? 'تم الدفع' : 'غير مدفوع',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: activeColor,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    value
+                        ? 'سيتم تسجيل قيمة الصنف كمدفوعة بالكامل'
+                        : 'سيتم تسجيل الصنف كمبلغ متبقي',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              value ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+              color: activeColor,
+              size: 22,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

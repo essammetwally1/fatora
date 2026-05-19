@@ -16,15 +16,50 @@ class InvoiceModel extends HiveObject {
 
   InvoiceModel({required this.title, required this.items});
 
+  int get itemCount => items.length;
+
   double get total {
-    return items.fold(0.0, (sum, item) => sum + item.price);
+    var value = 0.0;
+
+    for (final item in items) {
+      value += item.price;
+    }
+
+    return value;
   }
 
   double get paidTotal {
-    return items.fold(0.0, (sum, item) => sum + item.paidValue);
+    var value = 0.0;
+
+    for (final item in items) {
+      value += item.paidValue;
+    }
+
+    return value;
   }
 
   double get unpaidTotal {
-    return items.fold(0.0, (sum, item) => sum + item.remainingValue);
+    var value = 0.0;
+
+    for (final item in items) {
+      value += item.remainingValue;
+    }
+
+    return value;
+  }
+
+  bool get hasUnpaidItems {
+    for (final item in items) {
+      if (!item.isPaid && item.remainingValue > 0) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  String get displayTitle {
+    final value = title.trim();
+    return value.isEmpty ? 'فاتورة بدون عنوان' : value;
   }
 }

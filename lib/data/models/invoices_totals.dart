@@ -16,10 +16,8 @@ class InvoicesTotals {
     var total = 0.0;
 
     for (final invoice in invoices) {
-      for (final item in invoice.items) {
-        itemCount++;
-        total += item.price;
-      }
+      itemCount += invoice.itemCount;
+      total += invoice.total;
     }
 
     return InvoicesTotals(
