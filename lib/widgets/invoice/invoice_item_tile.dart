@@ -51,17 +51,20 @@ class InvoiceItemTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        item.displayCustomerName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.right,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: colorScheme.onSurface,
-                          fontWeight: FontWeight.w800,
+                      if (item.displayCustomerName != 'عميل غير معروف') ...[
+                        Text(
+                          item.displayCustomerName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.right,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: colorScheme.onSurface,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
+                        const SizedBox(height: 4),
+                      ],
+
                       Text(
                         item.displayItemName,
                         maxLines: 1,
@@ -72,7 +75,9 @@ class InvoiceItemTile extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+
                       const SizedBox(height: 4),
+
                       Row(
                         children: [
                           Flexible(
@@ -86,6 +91,7 @@ class InvoiceItemTile extends StatelessWidget {
                               ),
                             ),
                           ),
+
                           if (item.hasPartialPayment) ...[
                             const SizedBox(width: 6),
                             Icon(

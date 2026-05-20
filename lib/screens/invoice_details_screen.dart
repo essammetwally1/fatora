@@ -68,7 +68,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: Text(currentInvoice.title)),
+        appBar: AppBar(title: Text(currentInvoice.title, maxLines: 2)),
         floatingActionButton: LiquidFloatingActionButton(
           onPressed: () {
             showInvoiceItemSheet(context, invoice: currentInvoice);
