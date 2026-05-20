@@ -15,6 +15,9 @@ class AppTheme {
   static const Color _darkSurfaceHigh = Color(0xFF242544);
   static const Color _lightOnSurface = black;
   static const Color _darkOnSurface = Color(0xFFF4F7FB);
+  static const Color primaryDark = Color(0xFF3E4EE8);
+  static const Color primaryLight = Color(0xFF7D8BFF);
+  static const Color primaryGlow = Color(0xFFB8C0FF);
 
   static ThemeData lightTheme = _theme(
     brightness: Brightness.light,
@@ -98,8 +101,8 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
 
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: primary,
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: black,
         foregroundColor: Colors.white,
         shape: StadiumBorder(),
       ),

@@ -7,9 +7,13 @@ import '../data/repositories/invoice_repository.dart';
 class InvoiceProvider extends ChangeNotifier {
   final InvoiceRepository _repository = InvoiceRepository();
 
-  List<InvoiceModel> _invoices = [];
+  List<InvoiceModel> _invoices = const [];
 
-  List<InvoiceModel> get invoices => List.unmodifiable(_invoices);
+  int _version = 0;
+
+  List<InvoiceModel> get invoices => _invoices;
+
+  int get version => _version;
 
   InvoiceModel? invoiceByKey(dynamic key) {
     if (key == null) return null;
@@ -46,7 +50,6 @@ class InvoiceProvider extends ChangeNotifier {
 
   Future<void> deleteInvoice(InvoiceModel invoice) async {
     await _repository.deleteInvoice(invoiceKey: invoice.key);
-
     _replaceInvoices(_repository.getInvoices());
   }
 
@@ -55,7 +58,6 @@ class InvoiceProvider extends ChangeNotifier {
     required InvoiceItemModel item,
   }) async {
     await _repository.addItem(invoiceKey: invoice.key, item: item);
-
     _replaceInvoices(_repository.getInvoices());
   }
 
@@ -78,12 +80,12 @@ class InvoiceProvider extends ChangeNotifier {
     required int index,
   }) async {
     await _repository.deleteItem(invoiceKey: invoice.key, index: index);
-
     _replaceInvoices(_repository.getInvoices());
   }
 
   void _replaceInvoices(List<InvoiceModel> invoices) {
-    _invoices = invoices;
+    _invoices = List<InvoiceModel>.of(invoices, growable: false);
+    _version++;
     notifyListeners();
   }
 }

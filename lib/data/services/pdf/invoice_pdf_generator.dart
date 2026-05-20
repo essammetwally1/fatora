@@ -50,7 +50,7 @@ class InvoicePdfGenerator {
           textDirection: pw.TextDirection.rtl,
           buildBackground: (_) => _buildBackground(),
         ),
-        footer: (context) => _buildRepeatedFooter(context, logo),
+        footer: (context) => _buildRepeatedFooter(context, logo, assets),
         build: (_) => [
           _pageFrame(
             child: pw.Column(
@@ -76,6 +76,8 @@ class InvoicePdfGenerator {
     final boldData = await rootBundle.load('assets/fonts/DejaVuSans-Bold.ttf');
 
     Uint8List? logoBytes;
+    String? phoneSvg;
+    String? locationSvg;
 
     try {
       final logoData = await rootBundle.load('assets/logo.png');
@@ -84,11 +86,38 @@ class InvoicePdfGenerator {
       logoBytes = null;
     }
 
+    try {
+      final rawPhoneSvg = await rootBundle.loadString('assets/icons/phone.svg');
+      phoneSvg = _svgToWhite(rawPhoneSvg);
+    } catch (_) {
+      phoneSvg = null;
+    }
+
+    try {
+      final rawLocationSvg = await rootBundle.loadString(
+        'assets/icons/location.svg',
+      );
+      locationSvg = _svgToWhite(rawLocationSvg);
+    } catch (_) {
+      locationSvg = null;
+    }
+
     return _InvoicePdfAssets(
       regular: pw.Font.ttf(regularData),
       bold: pw.Font.ttf(boldData),
       logoBytes: logoBytes,
+      phoneSvg: phoneSvg,
+      locationSvg: locationSvg,
     );
+  }
+
+  static String _svgToWhite(String svg) {
+    return svg
+        .replaceAll(RegExp(r'fill="(?!none)[^"]*"'), 'fill="#FFFFFF"')
+        .replaceAll(RegExp(r"fill='(?!none)[^']*'"), "fill='#FFFFFF'")
+        .replaceAll(RegExp(r'stroke="[^"]*"'), 'stroke="#FFFFFF"')
+        .replaceAll(RegExp(r"stroke='[^']*'"), "stroke='#FFFFFF'")
+        .replaceAll('currentColor', '#FFFFFF');
   }
 
   static pw.Widget _buildBackground() {
@@ -139,73 +168,218 @@ class InvoicePdfGenerator {
 
   static pw.Widget _buildTopBrand(pw.ImageProvider? logo) {
     return pw.Container(
-      height: 145,
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      height: 118,
+      padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: pw.BoxDecoration(
-        color: _white,
-        borderRadius: pw.BorderRadius.circular(16),
+        color: _navy,
+        borderRadius: pw.BorderRadius.circular(18),
         border: pw.Border.all(color: _line, width: .85),
       ),
       child: pw.Stack(
         children: [
-          pw.Positioned(top: 0, right: 0, child: _cornerBlock(isRight: true)),
-          pw.Positioned(top: 0, left: 0, child: _cornerBlock(isRight: false)),
-          pw.Center(
+          pw.Positioned(
+            top: -42,
+            left: -30,
+            child: pw.Container(
+              width: 115,
+              height: 115,
+              decoration: const pw.BoxDecoration(
+                shape: pw.BoxShape.circle,
+                color: PdfColor(1, 1, 1, .045),
+              ),
+            ),
+          ),
+          pw.Positioned(
+            bottom: -46,
+            right: -30,
+            child: pw.Container(
+              width: 110,
+              height: 110,
+              decoration: const pw.BoxDecoration(
+                shape: pw.BoxShape.circle,
+                color: PdfColor(.72, .54, .21, .12),
+              ),
+            ),
+          ),
+
+          // Simple bottom decoration under the name area.
+          pw.Positioned(
+            left: 28,
+            right: 128,
+            bottom: 7,
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.center,
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
               children: [
-                _logoBox(logo, size: 112),
-                pw.SizedBox(width: 14),
-                pw.Column(
-                  mainAxisAlignment: pw.MainAxisAlignment.center,
-                  crossAxisAlignment: pw.CrossAxisAlignment.center,
-                  children: [
-                    pw.Text(
-                      'Mostafa Saad Optics Lab',
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                        color: _navy,
-                        fontSize: 16,
-                        fontWeight: pw.FontWeight.bold,
-                        letterSpacing: .8,
-                      ),
+                pw.Container(
+                  width: 42,
+                  height: .75,
+                  decoration: pw.BoxDecoration(
+                    color: const PdfColor(1, 1, 1, .35),
+                    borderRadius: pw.BorderRadius.circular(2),
+                  ),
+                ),
+                pw.SizedBox(width: 8),
+                pw.Transform.rotate(
+                  angle: 0.785398,
+                  child: pw.Container(
+                    width: 5,
+                    height: 5,
+                    decoration: pw.BoxDecoration(
+                      color: _gold,
+                      border: pw.Border.all(color: _gold, width: .6),
                     ),
-                    pw.SizedBox(height: 4),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.center,
-                      children: [
-                        _smallLine(48),
-                        pw.SizedBox(width: 7),
-                        _diamond(6),
-                        pw.SizedBox(width: 7),
-                        _smallLine(48),
-                      ],
-                    ),
-                    pw.SizedBox(height: 6),
-                    pw.Text(
-                      'معمل مصطفى سعد للبصريات',
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                        color: _navy,
-                        fontSize: 14.5,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                    ),
-                    pw.SizedBox(height: 4),
-                    pw.Text(
-                      'عدسات ونظارات طبية',
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                        color: _gold,
-                        fontSize: 8.4,
-                        fontWeight: pw.FontWeight.bold,
-                        letterSpacing: .8,
-                      ),
-                    ),
-                  ],
+                  ),
+                ),
+                pw.SizedBox(width: 8),
+                pw.Container(
+                  width: 42,
+                  height: .75,
+                  decoration: pw.BoxDecoration(
+                    color: const PdfColor(1, 1, 1, .35),
+                    borderRadius: pw.BorderRadius.circular(2),
+                  ),
                 ),
               ],
+            ),
+          ),
+
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              _modernLogoSquare(logo),
+              pw.SizedBox(width: 14),
+              pw.Container(
+                width: .8,
+                height: 72,
+                color: const PdfColor(1, 1, 1, .22),
+              ),
+              pw.SizedBox(width: 14),
+              pw.Expanded(child: _simpleCenteredBrandName()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _modernLogoSquare(pw.ImageProvider? logo) {
+    return pw.Container(
+      width: 82,
+      height: 82,
+      padding: const pw.EdgeInsets.all(5),
+      decoration: pw.BoxDecoration(
+        color: _white,
+        borderRadius: pw.BorderRadius.circular(18),
+        border: pw.Border.all(color: _gold, width: 1.25),
+      ),
+      child: pw.Container(
+        padding: const pw.EdgeInsets.all(5),
+        decoration: pw.BoxDecoration(
+          color: _white,
+          borderRadius: pw.BorderRadius.circular(14),
+          border: pw.Border.all(
+            color: const PdfColor(.02, .12, .23, .10),
+            width: .5,
+          ),
+        ),
+        child: logo == null
+            ? pw.Center(
+                child: pw.Text(
+                  'MS',
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(
+                    color: _navy,
+                    fontSize: 22,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              )
+            : pw.ClipRRect(
+                horizontalRadius: 12,
+                verticalRadius: 12,
+                child: pw.Image(logo, fit: pw.BoxFit.contain),
+              ),
+      ),
+    );
+  }
+
+  static pw.Widget _simpleCenteredBrandName() {
+    return pw.Container(
+      height: 86,
+      width: double.infinity,
+      alignment: pw.Alignment.center,
+      child: pw.Column(
+        mainAxisAlignment: pw.MainAxisAlignment.center,
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          pw.Container(
+            width: double.infinity,
+            alignment: pw.Alignment.center,
+            child: pw.Text(
+              'معمل',
+              maxLines: 1,
+              textAlign: pw.TextAlign.center,
+              textDirection: pw.TextDirection.rtl,
+              style: pw.TextStyle(
+                color: _gold,
+                fontSize: 15.5,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+
+          pw.SizedBox(height: 2),
+
+          pw.Container(
+            width: double.infinity,
+            alignment: pw.Alignment.center,
+            padding: const pw.EdgeInsets.symmetric(horizontal: 8),
+            child: pw.Text(
+              'مصطفى سعد',
+              maxLines: 1,
+              softWrap: false,
+              textAlign: pw.TextAlign.center,
+              textDirection: pw.TextDirection.rtl,
+              style: pw.TextStyle(
+                color: _white,
+                fontSize: 32,
+                fontWeight: pw.FontWeight.bold,
+                letterSpacing: 0,
+                wordSpacing: 0,
+              ),
+            ),
+          ),
+          pw.SizedBox(height: 2),
+
+          pw.Container(
+            width: double.infinity,
+            alignment: pw.Alignment.center,
+            child: pw.Text(
+              'للبصريات',
+              maxLines: 1,
+              textAlign: pw.TextAlign.center,
+              textDirection: pw.TextDirection.rtl,
+              style: pw.TextStyle(
+                color: _gold,
+                fontSize: 15.5,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+
+          pw.SizedBox(height: 5),
+
+          // Decoration directly under the brand name.
+          pw.Container(
+            width: double.infinity,
+            alignment: pw.Alignment.center,
+            child: pw.Container(
+              width: 132,
+              height: 1.1,
+              decoration: pw.BoxDecoration(
+                color: _gold,
+                borderRadius: pw.BorderRadius.circular(4),
+              ),
             ),
           ),
         ],
@@ -213,47 +387,32 @@ class InvoicePdfGenerator {
     );
   }
 
-  static pw.Widget _cornerBlock({required bool isRight}) {
+  static pw.Widget _footerLogoBox(pw.ImageProvider? logo) {
     return pw.Container(
       width: 34,
       height: 34,
-      decoration: pw.BoxDecoration(
-        color: _navy,
-        borderRadius: isRight
-            ? const pw.BorderRadius.only(
-                topRight: pw.Radius.circular(13),
-                bottomLeft: pw.Radius.circular(13),
-              )
-            : const pw.BorderRadius.only(
-                topLeft: pw.Radius.circular(13),
-                bottomRight: pw.Radius.circular(13),
-              ),
-      ),
-    );
-  }
-
-  static pw.Widget _logoBox(pw.ImageProvider? logo, {required double size}) {
-    return pw.Container(
-      width: size,
-      height: size,
-      padding: const pw.EdgeInsets.all(4),
+      padding: const pw.EdgeInsets.all(3),
       decoration: pw.BoxDecoration(
         color: _white,
-        shape: pw.BoxShape.circle,
-        border: pw.Border.all(color: _gold, width: 1.65),
+        borderRadius: pw.BorderRadius.circular(10),
+        border: pw.Border.all(color: _gold, width: 1.1),
       ),
-      child: logo == null
-          ? pw.Center(
-              child: pw.Text(
-                'MS',
-                style: pw.TextStyle(
-                  color: _navy,
-                  fontSize: size * .28,
-                  fontWeight: pw.FontWeight.bold,
+      child: pw.ClipRRect(
+        horizontalRadius: 8,
+        verticalRadius: 8,
+        child: logo == null
+            ? pw.Center(
+                child: pw.Text(
+                  'MS',
+                  style: pw.TextStyle(
+                    color: _navy,
+                    fontSize: 9,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
                 ),
-              ),
-            )
-          : pw.Image(logo, fit: pw.BoxFit.contain),
+              )
+            : pw.Image(logo, fit: pw.BoxFit.contain),
+      ),
     );
   }
 
@@ -282,30 +441,14 @@ class InvoicePdfGenerator {
               color: _navy,
               borderRadius: pw.BorderRadius.circular(10),
             ),
-            child: pw.Column(
-              mainAxisAlignment: pw.MainAxisAlignment.center,
-              children: [
-                pw.Text(
-                  'فاتورة',
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                    color: _white,
-                    fontSize: 16,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 1),
-                pw.Text(
-                  'INVOICE',
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                    color: _gold,
-                    fontSize: 7,
-                    fontWeight: pw.FontWeight.bold,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ],
+            child: pw.Text(
+              'فاتورة',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(
+                color: _white,
+                fontSize: 16,
+                fontWeight: pw.FontWeight.bold,
+              ),
             ),
           ),
           pw.SizedBox(width: 8),
@@ -472,6 +615,7 @@ class InvoicePdfGenerator {
               color: _text,
               maxLines: 2,
               center: true,
+              bold: true,
             ),
           ),
           _tableDivider(height: 32),
@@ -586,6 +730,7 @@ class InvoicePdfGenerator {
   static pw.Widget _buildRepeatedFooter(
     pw.Context context,
     pw.ImageProvider? logo,
+    _InvoicePdfAssets assets,
   ) {
     return pw.Container(
       margin: const pw.EdgeInsets.only(top: 7),
@@ -621,13 +766,15 @@ class InvoicePdfGenerator {
                     children: [
                       _footerDataFrame(
                         text: '01210568226 - 01098279207',
-                        iconText: '☎',
+                        svg: assets.phoneSvg,
+                        fallbackIcon: '☎',
                       ),
                       pw.SizedBox(height: 4),
                       _footerDataFrame(
                         text:
                             'المحله الكبرى - ميدان الشون - أمام مدرسة طه حسين',
-                        iconText: '⌖',
+                        svg: assets.locationSvg,
+                        fallbackIcon: '⌖',
                       ),
                     ],
                   ),
@@ -653,7 +800,7 @@ class InvoicePdfGenerator {
   static pw.Widget _footerBrand(pw.ImageProvider? logo) {
     return pw.Row(
       children: [
-        _logoBox(logo, size: 34),
+        _footerLogoBox(logo),
         pw.SizedBox(width: 6),
         pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -686,7 +833,8 @@ class InvoicePdfGenerator {
 
   static pw.Widget _footerDataFrame({
     required String text,
-    required String iconText,
+    required String? svg,
+    required String fallbackIcon,
   }) {
     return pw.Container(
       height: 18,
@@ -700,6 +848,8 @@ class InvoicePdfGenerator {
         ),
       ),
       child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.start,
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
           pw.Container(
             width: 15,
@@ -709,15 +859,20 @@ class InvoicePdfGenerator {
               color: _navy,
               shape: pw.BoxShape.circle,
             ),
-            child: pw.Text(
-              iconText,
-              textAlign: pw.TextAlign.center,
-              style: pw.TextStyle(
-                color: _gold,
-                fontSize: 6.5,
-                fontWeight: pw.FontWeight.bold,
-              ),
-            ),
+            child: svg == null
+                ? pw.Text(
+                    fallbackIcon,
+                    textAlign: pw.TextAlign.center,
+                    style: pw.TextStyle(
+                      color: _white,
+                      fontSize: 6.5,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  )
+                : pw.Padding(
+                    padding: const pw.EdgeInsets.all(3),
+                    child: pw.SvgImage(svg: svg, width: 8, height: 8),
+                  ),
           ),
           pw.SizedBox(width: 6),
           pw.Expanded(
@@ -736,33 +891,20 @@ class InvoicePdfGenerator {
       ),
     );
   }
-
-  static pw.Widget _smallLine(double width) {
-    return pw.Container(width: width, height: .75, color: _gold);
-  }
-
-  static pw.Widget _diamond(double size) {
-    return pw.Transform.rotate(
-      angle: 0.785398,
-      child: pw.Container(
-        width: size,
-        height: size,
-        decoration: pw.BoxDecoration(
-          border: pw.Border.all(color: _gold, width: .75),
-        ),
-      ),
-    );
-  }
 }
 
 class _InvoicePdfAssets {
   final pw.Font regular;
   final pw.Font bold;
   final Uint8List? logoBytes;
+  final String? phoneSvg;
+  final String? locationSvg;
 
   const _InvoicePdfAssets({
     required this.regular,
     required this.bold,
     required this.logoBytes,
+    required this.phoneSvg,
+    required this.locationSvg,
   });
 }

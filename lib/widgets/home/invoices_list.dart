@@ -41,6 +41,10 @@ class InvoicesList extends StatelessWidget {
     return ListView.separated(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      cacheExtent: 600,
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
+      addSemanticIndexes: false,
       itemCount: invoices.length + 1,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
@@ -84,7 +88,7 @@ class InvoicesList extends StatelessWidget {
     return showDialog<bool>(
       context: context,
       builder: (dialogContext) {
-        final colorScheme = Theme.of(context).colorScheme;
+        final colorScheme = Theme.of(dialogContext).colorScheme;
 
         return Directionality(
           textDirection: TextDirection.rtl,
