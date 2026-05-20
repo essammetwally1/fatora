@@ -177,18 +177,7 @@ class InvoicePdfGenerator {
       ),
       child: pw.Stack(
         children: [
-          pw.Positioned(
-            top: -42,
-            left: -30,
-            child: pw.Container(
-              width: 115,
-              height: 115,
-              decoration: const pw.BoxDecoration(
-                shape: pw.BoxShape.circle,
-                color: PdfColor(1, 1, 1, .045),
-              ),
-            ),
-          ),
+          // Top-left white area removed.
           pw.Positioned(
             bottom: -46,
             right: -30,
@@ -542,7 +531,7 @@ class InvoicePdfGenerator {
       ),
       child: pw.Row(
         children: [
-          _tableText('م', width: 38, color: _white, bold: true, center: true),
+          _tableText('', width: 38, color: _white, bold: true, center: true),
           _tableDivider(color: _line, height: 28),
           pw.Expanded(
             flex: 5,

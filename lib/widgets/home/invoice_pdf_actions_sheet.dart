@@ -31,20 +31,30 @@ class InvoicePdfActionsSheet extends StatefulWidget {
 }
 
 class _InvoicePdfActionsSheetState extends State<InvoicePdfActionsSheet> {
+  static const String _pdfIcon = 'assets/icons/pdf.svg';
   static const String _downloadIcon = 'assets/icons/download.svg';
   static const String _exportIcon = 'assets/icons/export.svg';
 
+  bool _isPreviewing = false;
   bool _isSaving = false;
   bool _isSharing = false;
 
   Future<void> _openPreview() async {
-    Navigator.of(context).pop();
+    if (_isPreviewing) return;
 
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => InvoicePdfScreen(invoice: widget.invoice),
-      ),
-    );
+    setState(() => _isPreviewing = true);
+
+    try {
+      Navigator.of(context).pop();
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => InvoicePdfScreen(invoice: widget.invoice),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isPreviewing = false);
+    }
   }
 
   Future<void> _savePdf() async {
@@ -135,6 +145,8 @@ class _InvoicePdfActionsSheetState extends State<InvoicePdfActionsSheet> {
         ? 'فاتورة بدون عنوان'
         : widget.invoice.title.trim();
 
+    final theme = Theme.of(context);
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: SafeArea(
@@ -144,26 +156,35 @@ class _InvoicePdfActionsSheetState extends State<InvoicePdfActionsSheet> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _SheetHeader(invoiceTitle: invoiceTitle),
+              _SheetHeader(invoiceTitle: invoiceTitle, pdfIconAsset: _pdfIcon),
               const SizedBox(height: 16),
-              _MaterialActionTile(
-                icon: Icons.visibility_rounded,
+
+              _PdfActionTile(
+                icon: Icon(
+                  Icons.visibility_rounded,
+                  color: theme.colorScheme.onPrimary,
+                  size: 22,
+                ),
                 title: 'معاينة PDF',
                 subtitle: 'افتح صفحة المعاينة قبل الحفظ أو المشاركة',
-                isLoading: false,
+                isLoading: _isPreviewing,
                 onTap: _openPreview,
               ),
+
               const SizedBox(height: 10),
-              _SvgActionTile(
-                iconAsset: _downloadIcon,
+
+              _PdfActionTile(
+                icon: _ActionSvgIcon(assetName: _downloadIcon),
                 title: 'حفظ على الجهاز',
                 subtitle: 'تنزيل الفاتورة كملف PDF',
                 isLoading: _isSaving,
                 onTap: _savePdf,
               ),
+
               const SizedBox(height: 10),
-              _SvgActionTile(
-                iconAsset: _exportIcon,
+
+              _PdfActionTile(
+                icon: _ActionSvgIcon(assetName: _exportIcon),
                 title: 'مشاركة / Export',
                 subtitle: 'إرسال الفاتورة عبر واتساب أو تليجرام أو غيره',
                 isLoading: _isSharing,
@@ -179,119 +200,56 @@ class _InvoicePdfActionsSheetState extends State<InvoicePdfActionsSheet> {
 
 class _SheetHeader extends StatelessWidget {
   final String invoiceTitle;
+  final String pdfIconAsset;
 
-  const _SheetHeader({required this.invoiceTitle});
+  const _SheetHeader({required this.invoiceTitle, required this.pdfIconAsset});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: theme.colorScheme.primary,
-            foregroundColor: theme.colorScheme.onPrimary,
-            child: const Icon(Icons.picture_as_pdf_rounded),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              invoiceTitle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onPrimaryContainer,
-                fontWeight: FontWeight.w900,
+    return RepaintBoundary(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: theme.colorScheme.primary.withValues(alpha: .30),
+              child: SvgPicture.asset(pdfIconAsset, width: 23, height: 23),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                invoiceTitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: theme.colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SvgActionTile extends StatelessWidget {
-  final String iconAsset;
-  final String title;
-  final String subtitle;
-  final bool isLoading;
-  final VoidCallback onTap;
-
-  const _SvgActionTile({
-    required this.iconAsset,
-    required this.title,
-    required this.subtitle,
-    required this.isLoading,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return _ActionTileBase(
-      title: title,
-      subtitle: subtitle,
-      isLoading: isLoading,
-      onTap: onTap,
-      icon: SvgPicture.asset(
-        iconAsset,
-        width: 22,
-        height: 22,
-        colorFilter: ColorFilter.mode(
-          theme.colorScheme.onPrimary,
-          BlendMode.srcIn,
+          ],
         ),
       ),
     );
   }
 }
 
-class _MaterialActionTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool isLoading;
-  final VoidCallback onTap;
-
-  const _MaterialActionTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.isLoading,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return _ActionTileBase(
-      title: title,
-      subtitle: subtitle,
-      isLoading: isLoading,
-      onTap: onTap,
-      icon: Icon(icon, color: theme.colorScheme.onPrimary),
-    );
-  }
-}
-
-class _ActionTileBase extends StatelessWidget {
+class _PdfActionTile extends StatelessWidget {
   final Widget icon;
   final String title;
   final String subtitle;
   final bool isLoading;
   final VoidCallback onTap;
 
-  const _ActionTileBase({
+  const _PdfActionTile({
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -303,34 +261,84 @@ class _ActionTileBase extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
-      elevation: 0,
-      color: theme.colorScheme.surfaceContainerHighest,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: ListTile(
-        enabled: !isLoading,
-        onTap: isLoading ? null : onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        leading: CircleAvatar(
-          backgroundColor: theme.colorScheme.primary,
-          foregroundColor: theme.colorScheme.onPrimary,
-          child: isLoading
-              ? SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: theme.colorScheme.onPrimary,
-                  ),
-                )
-              : icon,
+    return RepaintBoundary(
+      child: Card(
+        elevation: 0,
+        color: theme.colorScheme.surfaceContainerHighest,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: ListTile(
+          enabled: !isLoading,
+          onTap: isLoading ? null : onTap,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 6,
+          ),
+          leading: CircleAvatar(
+            radius: 20,
+            backgroundColor: theme.colorScheme.primary,
+            foregroundColor: theme.colorScheme.onPrimary,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              child: isLoading
+                  ? SizedBox(
+                      key: const ValueKey('loading'),
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: theme.colorScheme.onPrimary,
+                      ),
+                    )
+                  : SizedBox(
+                      key: const ValueKey('icon'),
+                      width: 22,
+                      height: 22,
+                      child: Center(child: icon),
+                    ),
+            ),
+          ),
+          title: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          subtitle: Text(
+            subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall,
+          ),
+          trailing: Icon(
+            Icons.chevron_left_rounded,
+            color: theme.colorScheme.primary,
+          ),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
-        subtitle: Text(subtitle),
-        trailing: Icon(
-          Icons.chevron_left_rounded,
-          color: theme.colorScheme.primary,
-        ),
+      ),
+    );
+  }
+}
+
+class _ActionSvgIcon extends StatelessWidget {
+  final String assetName;
+
+  const _ActionSvgIcon({required this.assetName});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SvgPicture.asset(
+      assetName,
+      width: 22,
+      height: 22,
+      colorFilter: ColorFilter.mode(
+        theme.colorScheme.onPrimary,
+        BlendMode.srcIn,
       ),
     );
   }
