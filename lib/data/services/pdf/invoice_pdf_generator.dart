@@ -45,12 +45,20 @@ class InvoicePdfGenerator {
         maxPages: 300,
         pageTheme: pw.PageTheme(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.fromLTRB(20, 18, 20, 90),
+
+          // مهم:
+          // bottom أقل = الفوتر ينزل لتحت أكثر
+          // وخليها مناسبة عشان مفيش overlap مع المحتوى
+          margin: const pw.EdgeInsets.fromLTRB(20, 18, 20, 72),
+
           theme: theme,
           textDirection: pw.TextDirection.rtl,
           buildBackground: (_) => _buildBackground(),
         ),
+
+        // الفوتر هيبقى في المكان الصحيح أسفل الصفحة
         footer: (context) => _buildRepeatedFooter(context, logo, assets),
+
         build: (_) => [
           _pageFrame(
             child: pw.Column(
@@ -67,7 +75,6 @@ class InvoicePdfGenerator {
         ],
       ),
     );
-
     return document.save();
   }
 
@@ -177,7 +184,6 @@ class InvoicePdfGenerator {
       ),
       child: pw.Stack(
         children: [
-          // Top-left white area removed.
           pw.Positioned(
             bottom: -46,
             right: -30,
@@ -190,8 +196,6 @@ class InvoicePdfGenerator {
               ),
             ),
           ),
-
-          // Simple bottom decoration under the name area.
           pw.Positioned(
             left: 28,
             right: 128,
@@ -231,7 +235,6 @@ class InvoicePdfGenerator {
               ],
             ),
           ),
-
           pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
@@ -316,9 +319,7 @@ class InvoicePdfGenerator {
               ),
             ),
           ),
-
           pw.SizedBox(height: 2),
-
           pw.Container(
             width: double.infinity,
             alignment: pw.Alignment.center,
@@ -339,7 +340,6 @@ class InvoicePdfGenerator {
             ),
           ),
           pw.SizedBox(height: 2),
-
           pw.Container(
             width: double.infinity,
             alignment: pw.Alignment.center,
@@ -355,10 +355,7 @@ class InvoicePdfGenerator {
               ),
             ),
           ),
-
           pw.SizedBox(height: 5),
-
-          // Decoration directly under the brand name.
           pw.Container(
             width: double.infinity,
             alignment: pw.Alignment.center,
@@ -376,35 +373,6 @@ class InvoicePdfGenerator {
     );
   }
 
-  static pw.Widget _footerLogoBox(pw.ImageProvider? logo) {
-    return pw.Container(
-      width: 34,
-      height: 34,
-      padding: const pw.EdgeInsets.all(3),
-      decoration: pw.BoxDecoration(
-        color: _white,
-        borderRadius: pw.BorderRadius.circular(10),
-        border: pw.Border.all(color: _gold, width: 1.1),
-      ),
-      child: pw.ClipRRect(
-        horizontalRadius: 8,
-        verticalRadius: 8,
-        child: logo == null
-            ? pw.Center(
-                child: pw.Text(
-                  'MS',
-                  style: pw.TextStyle(
-                    color: _navy,
-                    fontSize: 9,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              )
-            : pw.Image(logo, fit: pw.BoxFit.contain),
-      ),
-    );
-  }
-
   static pw.Widget _buildInvoiceInfoBox(InvoiceModel invoice) {
     final title = invoice.title.trim().isEmpty
         ? 'عميل غير معروف'
@@ -413,7 +381,7 @@ class InvoicePdfGenerator {
     final date = Formatters.formatDate(DateTime.now());
 
     return pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
       decoration: pw.BoxDecoration(
         color: _softGold,
         borderRadius: pw.BorderRadius.circular(12),
@@ -423,8 +391,8 @@ class InvoicePdfGenerator {
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
           pw.Container(
-            width: 88,
-            height: 44,
+            width: 92,
+            height: 52,
             alignment: pw.Alignment.center,
             decoration: pw.BoxDecoration(
               color: _navy,
@@ -435,7 +403,7 @@ class InvoicePdfGenerator {
               textAlign: pw.TextAlign.center,
               style: pw.TextStyle(
                 color: _white,
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
@@ -445,7 +413,7 @@ class InvoicePdfGenerator {
             child: pw.Column(
               children: [
                 _infoRow(label: 'اسم العميل', value: title),
-                pw.SizedBox(height: 3),
+                pw.SizedBox(height: 4),
                 _infoRow(label: 'التاريخ', value: date),
               ],
             ),
@@ -457,7 +425,7 @@ class InvoicePdfGenerator {
 
   static pw.Widget _infoRow({required String label, required String value}) {
     return pw.Container(
-      height: 18,
+      height: 22,
       decoration: pw.BoxDecoration(
         color: const PdfColor(1, 1, 1, .56),
         borderRadius: pw.BorderRadius.circular(7),
@@ -470,7 +438,7 @@ class InvoicePdfGenerator {
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
           pw.Container(
-            width: 72,
+            width: 78,
             alignment: pw.Alignment.center,
             child: pw.Text(
               label,
@@ -478,12 +446,12 @@ class InvoicePdfGenerator {
               textAlign: pw.TextAlign.center,
               style: pw.TextStyle(
                 color: _navy,
-                fontSize: 8.4,
+                fontSize: 10.2,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
           ),
-          pw.Container(width: .55, height: 13, color: _gold),
+          pw.Container(width: .55, height: 16, color: _gold),
           pw.Expanded(
             child: pw.Container(
               alignment: pw.Alignment.center,
@@ -494,7 +462,7 @@ class InvoicePdfGenerator {
                 textAlign: pw.TextAlign.center,
                 style: pw.TextStyle(
                   color: _text,
-                  fontSize: 8.4,
+                  fontSize: 10.6,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
@@ -521,7 +489,7 @@ class InvoicePdfGenerator {
 
   static pw.Widget _tableHeader() {
     return pw.Container(
-      height: 28,
+      height: 30,
       decoration: pw.BoxDecoration(
         color: _navy,
         borderRadius: const pw.BorderRadius.vertical(
@@ -531,8 +499,15 @@ class InvoicePdfGenerator {
       ),
       child: pw.Row(
         children: [
-          _tableText('', width: 38, color: _white, bold: true, center: true),
-          _tableDivider(color: _line, height: 28),
+          _tableText(
+            '',
+            width: 38,
+            color: _white,
+            bold: true,
+            center: true,
+            fontSize: 9.2,
+          ),
+          _tableDivider(color: _line, height: 30),
           pw.Expanded(
             flex: 5,
             child: _tableText(
@@ -540,12 +515,19 @@ class InvoicePdfGenerator {
               color: _white,
               bold: true,
               center: true,
+              fontSize: 10.8,
             ),
           ),
-          _tableDivider(color: _line, height: 28),
+          _tableDivider(color: _line, height: 30),
           pw.Expanded(
             flex: 2,
-            child: _tableText('السعر', color: _white, bold: true, center: true),
+            child: _tableText(
+              'السعر',
+              color: _white,
+              bold: true,
+              center: true,
+              fontSize: 10.8,
+            ),
           ),
         ],
       ),
@@ -568,7 +550,7 @@ class InvoicePdfGenerator {
         'لا توجد عناصر داخل هذه الفاتورة.',
         style: pw.TextStyle(
           color: _muted,
-          fontSize: 8.8,
+          fontSize: 9.4,
           fontWeight: pw.FontWeight.bold,
         ),
       ),
@@ -577,7 +559,7 @@ class InvoicePdfGenerator {
 
   static pw.Widget _itemRow(InvoiceItemModel item, int index) {
     return pw.Container(
-      constraints: const pw.BoxConstraints(minHeight: 30),
+      constraints: const pw.BoxConstraints(minHeight: 34),
       decoration: pw.BoxDecoration(
         color: index.isEven ? _white : _softRow,
         border: pw.Border(
@@ -595,8 +577,9 @@ class InvoicePdfGenerator {
             color: _navy,
             bold: true,
             center: true,
+            fontSize: 9,
           ),
-          _tableDivider(height: 32),
+          _tableDivider(height: 34),
           pw.Expanded(
             flex: 5,
             child: _tableText(
@@ -605,9 +588,10 @@ class InvoicePdfGenerator {
               maxLines: 2,
               center: true,
               bold: true,
+              fontSize: 11.2,
             ),
           ),
-          _tableDivider(height: 32),
+          _tableDivider(height: 34),
           pw.Expanded(
             flex: 2,
             child: _tableText(
@@ -615,6 +599,7 @@ class InvoicePdfGenerator {
               color: _navy,
               bold: true,
               center: true,
+              fontSize: 11.4,
             ),
           ),
         ],
@@ -691,6 +676,7 @@ class InvoicePdfGenerator {
     bool bold = false,
     bool center = false,
     int maxLines = 1,
+    double fontSize = 8.9,
   }) {
     final child = pw.Container(
       padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
@@ -701,7 +687,7 @@ class InvoicePdfGenerator {
         textAlign: center ? pw.TextAlign.center : pw.TextAlign.right,
         style: pw.TextStyle(
           color: color,
-          fontSize: 8.9,
+          fontSize: fontSize,
           fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
         ),
       ),
@@ -712,7 +698,7 @@ class InvoicePdfGenerator {
     return pw.SizedBox(width: width, child: child);
   }
 
-  static pw.Widget _tableDivider({PdfColor? color, double height = 32}) {
+  static pw.Widget _tableDivider({PdfColor? color, double height = 34}) {
     return pw.Container(width: .5, height: height, color: color ?? _line);
   }
 
@@ -721,67 +707,102 @@ class InvoicePdfGenerator {
     pw.ImageProvider? logo,
     _InvoicePdfAssets assets,
   ) {
-    return pw.Container(
-      margin: const pw.EdgeInsets.only(top: 7),
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: pw.BoxDecoration(
-        color: _white,
-        borderRadius: pw.BorderRadius.circular(16),
-        border: pw.Border.all(color: _line, width: .75),
-      ),
-      child: pw.Column(
-        mainAxisSize: pw.MainAxisSize.min,
-        children: [
-          pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-            decoration: pw.BoxDecoration(
-              color: _softGold,
-              borderRadius: pw.BorderRadius.circular(13),
-              border: pw.Border.all(
-                color: const PdfColor(.84, .71, .42, .45),
-                width: .45,
+    return pw.Align(
+      alignment: pw.Alignment.bottomCenter,
+      child: pw.Container(
+        margin: const pw.EdgeInsets.only(top: 4),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: pw.BoxDecoration(
+          color: _white,
+          borderRadius: pw.BorderRadius.circular(14),
+          border: pw.Border.all(color: _line, width: .7),
+        ),
+        child: pw.Column(
+          mainAxisSize: pw.MainAxisSize.min,
+          children: [
+            pw.Container(
+              padding: const pw.EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 6,
+              ),
+              decoration: pw.BoxDecoration(
+                color: _softGold,
+                borderRadius: pw.BorderRadius.circular(12),
+                border: pw.Border.all(
+                  color: const PdfColor(.84, .71, .42, .45),
+                  width: .45,
+                ),
+              ),
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                children: [
+                  _footerBrand(logo),
+                  pw.SizedBox(width: 9),
+                  pw.Container(width: .65, height: 38, color: _gold),
+                  pw.SizedBox(width: 9),
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                      children: [
+                        _footerDataFrame(
+                          text: '01210568226 - 01098279207',
+                          svg: assets.phoneSvg,
+                          fallbackIcon: '☎',
+                        ),
+                        pw.SizedBox(height: 4),
+                        _footerDataFrame(
+                          text:
+                              'المحله الكبرى - ميدان الشون - أمام مدرسة طه حسين',
+                          svg: assets.locationSvg,
+                          fallbackIcon: '⌖',
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
-              children: [
-                _footerBrand(logo),
-                pw.SizedBox(width: 10),
-                pw.Container(width: .65, height: 38, color: _gold),
-                pw.SizedBox(width: 10),
-                pw.Expanded(
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                    children: [
-                      _footerDataFrame(
-                        text: '01210568226 - 01098279207',
-                        svg: assets.phoneSvg,
-                        fallbackIcon: '☎',
-                      ),
-                      pw.SizedBox(height: 4),
-                      _footerDataFrame(
-                        text:
-                            'المحله الكبرى - ميدان الشون - أمام مدرسة طه حسين',
-                        svg: assets.locationSvg,
-                        fallbackIcon: '⌖',
-                      ),
-                    ],
+            pw.SizedBox(height: 2),
+            pw.Text(
+              'صفحة ${context.pageNumber} من ${context.pagesCount}',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(
+                color: _muted,
+                fontSize: 7,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static pw.Widget _footerLogoBox(pw.ImageProvider? logo) {
+    return pw.Container(
+      width: 36,
+      height: 36,
+      padding: const pw.EdgeInsets.all(3),
+      decoration: pw.BoxDecoration(
+        color: _white,
+        borderRadius: pw.BorderRadius.circular(10),
+        border: pw.Border.all(color: _gold, width: 1.1),
+      ),
+      child: pw.ClipRRect(
+        horizontalRadius: 8,
+        verticalRadius: 8,
+        child: logo == null
+            ? pw.Center(
+                child: pw.Text(
+                  'MS',
+                  style: pw.TextStyle(
+                    color: _navy,
+                    fontSize: 9.6,
+                    fontWeight: pw.FontWeight.bold,
                   ),
                 ),
-              ],
-            ),
-          ),
-          pw.SizedBox(height: 3),
-          pw.Text(
-            'صفحة ${context.pageNumber} من ${context.pagesCount}',
-            textAlign: pw.TextAlign.center,
-            style: pw.TextStyle(
-              color: _muted,
-              fontSize: 6.7,
-              fontWeight: pw.FontWeight.bold,
-            ),
-          ),
-        ],
+              )
+            : pw.Image(logo, fit: pw.BoxFit.contain),
       ),
     );
   }
@@ -790,7 +811,7 @@ class InvoicePdfGenerator {
     return pw.Row(
       children: [
         _footerLogoBox(logo),
-        pw.SizedBox(width: 6),
+        pw.SizedBox(width: 7),
         pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.center,
           children: [
@@ -799,7 +820,7 @@ class InvoicePdfGenerator {
               textAlign: pw.TextAlign.center,
               style: pw.TextStyle(
                 color: _navy,
-                fontSize: 9.8,
+                fontSize: 11.2,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
@@ -809,7 +830,7 @@ class InvoicePdfGenerator {
               textAlign: pw.TextAlign.center,
               style: pw.TextStyle(
                 color: _gold,
-                fontSize: 6,
+                fontSize: 6.9,
                 fontWeight: pw.FontWeight.bold,
                 letterSpacing: .7,
               ),
@@ -826,7 +847,7 @@ class InvoicePdfGenerator {
     required String fallbackIcon,
   }) {
     return pw.Container(
-      height: 18,
+      height: 21,
       padding: const pw.EdgeInsets.symmetric(horizontal: 7),
       decoration: pw.BoxDecoration(
         color: _white,
@@ -841,8 +862,8 @@ class InvoicePdfGenerator {
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
           pw.Container(
-            width: 15,
-            height: 15,
+            width: 16,
+            height: 16,
             alignment: pw.Alignment.center,
             decoration: pw.BoxDecoration(
               color: _navy,
@@ -854,13 +875,13 @@ class InvoicePdfGenerator {
                     textAlign: pw.TextAlign.center,
                     style: pw.TextStyle(
                       color: _white,
-                      fontSize: 6.5,
+                      fontSize: 7.2,
                       fontWeight: pw.FontWeight.bold,
                     ),
                   )
                 : pw.Padding(
                     padding: const pw.EdgeInsets.all(3),
-                    child: pw.SvgImage(svg: svg, width: 8, height: 8),
+                    child: pw.SvgImage(svg: svg, width: 9, height: 9),
                   ),
           ),
           pw.SizedBox(width: 6),
@@ -871,7 +892,7 @@ class InvoicePdfGenerator {
               textAlign: pw.TextAlign.center,
               style: pw.TextStyle(
                 color: _navy,
-                fontSize: 7.9,
+                fontSize: 9.1,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),

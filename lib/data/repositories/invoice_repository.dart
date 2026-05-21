@@ -4,77 +4,118 @@ import '../services/storage/hive_service.dart';
 
 class InvoiceRepository {
   List<InvoiceModel> getInvoices() {
-    return HiveService.getInvoiceBox().values.toList();
+    final invoices = HiveService.getInvoiceBox().values.toList(growable: false);
+
+    invoices.sort(_compareInvoicesNewestFirst);
+
+    return invoices;
   }
 
-  Future<void> createInvoice(String title) async {
+  Future<InvoiceModel> createInvoice(String title) async {
+    final box = HiveService.getInvoiceBox();
+
     final invoice = InvoiceModel(title: title, items: []);
 
-    await HiveService.getInvoiceBox().add(invoice);
+    await box.add(invoice);
+
+    return invoice;
   }
 
-  Future<void> updateInvoiceTitle({
+  Future<InvoiceModel?> updateInvoiceTitle({
     required dynamic invoiceKey,
     required String title,
   }) async {
-    final box = HiveService.getInvoiceBox();
-    final invoice = box.get(invoiceKey);
+    if (invoiceKey == null) return null;
 
-    if (invoice == null) return;
+    final invoice = HiveService.getInvoiceBox().get(invoiceKey);
+
+    if (invoice == null) return null;
 
     invoice.title = title;
     await invoice.save();
+
+    return invoice;
   }
 
-  Future<void> deleteInvoice({required dynamic invoiceKey}) async {
+  Future<bool> deleteInvoice({required dynamic invoiceKey}) async {
+    if (invoiceKey == null) return false;
+
     final box = HiveService.getInvoiceBox();
 
-    if (!box.containsKey(invoiceKey)) return;
+    if (!box.containsKey(invoiceKey)) return false;
 
     await box.delete(invoiceKey);
-    await box.compact();
+
+    return true;
   }
 
-  Future<void> addItem({
+  Future<InvoiceModel?> addItem({
     required dynamic invoiceKey,
     required InvoiceItemModel item,
   }) async {
-    final box = HiveService.getInvoiceBox();
-    final invoice = box.get(invoiceKey);
+    if (invoiceKey == null) return null;
 
-    if (invoice == null) return;
+    final invoice = HiveService.getInvoiceBox().get(invoiceKey);
+
+    if (invoice == null) return null;
 
     invoice.items.add(item);
     await invoice.save();
+
+    return invoice;
   }
 
-  Future<void> updateItem({
+  Future<InvoiceModel?> updateItem({
     required dynamic invoiceKey,
     required int index,
     required InvoiceItemModel item,
   }) async {
-    final box = HiveService.getInvoiceBox();
-    final invoice = box.get(invoiceKey);
+    if (invoiceKey == null) return null;
 
-    if (invoice == null) return;
-    if (index < 0 || index >= invoice.items.length) return;
+    final invoice = HiveService.getInvoiceBox().get(invoiceKey);
+
+    if (invoice == null) return null;
+    if (!_isValidItemIndex(invoice, index)) return null;
 
     invoice.items[index] = item;
     await invoice.save();
+
+    return invoice;
   }
 
-  Future<void> deleteItem({
+  Future<InvoiceModel?> deleteItem({
     required dynamic invoiceKey,
     required int index,
   }) async {
-    final box = HiveService.getInvoiceBox();
-    final invoice = box.get(invoiceKey);
+    if (invoiceKey == null) return null;
 
-    if (invoice == null) return;
-    if (index < 0 || index >= invoice.items.length) return;
+    final invoice = HiveService.getInvoiceBox().get(invoiceKey);
+
+    if (invoice == null) return null;
+    if (!_isValidItemIndex(invoice, index)) return null;
 
     invoice.items.removeAt(index);
     await invoice.save();
-    await box.compact();
+
+    return invoice;
+  }
+
+  Future<void> compactInvoicesBox() {
+    return HiveService.getInvoiceBox().compact();
+  }
+
+  static int _compareInvoicesNewestFirst(InvoiceModel a, InvoiceModel b) {
+    final aKey = a.key;
+    final bKey = b.key;
+
+    if (aKey is int && bKey is int) {
+      return bKey.compareTo(aKey);
+    }
+
+    return 0;
+  }
+
+  static bool _isValidItemIndex(InvoiceModel invoice, int index) {
+    return index >= 0 && index < invoice.items.length;
   }
 }

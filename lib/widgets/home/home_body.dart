@@ -45,7 +45,7 @@ class HomeBody extends StatelessWidget {
         ),
         CustomerSearchField(
           controller: searchController,
-          enabled: invoices.isNotEmpty,
+          enabled: true,
           onClear: onClearSearch,
           labelText: 'بحث في الفواتير',
           enabledHintText: 'اكتب اسم الفاتورة فقط',

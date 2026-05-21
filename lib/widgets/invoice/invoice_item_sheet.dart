@@ -108,7 +108,7 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
 
     // New item starts as paid by default.
     // Existing item keeps its old value.
-    _isPaid = existing?.isPaid ?? true;
+    _isPaid = existing?.isPaid ?? false;
   }
 
   @override

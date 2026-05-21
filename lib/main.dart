@@ -12,7 +12,6 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await initializeDateFormatting('ar');
-
   await HiveService.init();
 
   runApp(const FatoraApp());
@@ -29,7 +28,7 @@ class FatoraApp extends StatelessWidget {
           create: (_) => SettingsProvider(),
         ),
         ChangeNotifierProvider<InvoiceProvider>(
-          create: (_) => InvoiceProvider()..loadInvoices(),
+          create: (_) => InvoiceProvider()..loadInvoices(notify: false),
         ),
       ],
       child: Consumer<SettingsProvider>(

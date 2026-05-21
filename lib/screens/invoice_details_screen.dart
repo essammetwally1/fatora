@@ -4,19 +4,26 @@ import 'package:fatora/widgets/delete_background.dart';
 import 'package:fatora/widgets/invoice/empty_items_state.dart';
 import 'package:fatora/widgets/invoice/invoice_item_sheet.dart';
 import 'package:fatora/widgets/invoice/invoice_item_tile.dart';
-import 'package:fatora/widgets/nosearch_result_state.dart';
 import 'package:fatora/widgets/invoice/totals_header.dart';
+import 'package:fatora/widgets/liquid_floating_action_button.dart';
+import 'package:fatora/widgets/nosearch_result_state.dart';
+import 'package:fatora/widgets/pdf_action_button.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fatora/widgets/liquid_floating_action_button.dart';
+
 import '../data/models/invoice_item_model.dart';
 import '../data/models/invoice_model.dart';
 import '../providers/invoice_provider.dart';
 
 class InvoiceDetailsScreen extends StatefulWidget {
   final InvoiceModel invoice;
+  final ValueChanged<InvoiceModel> onExport;
 
-  const InvoiceDetailsScreen({super.key, required this.invoice});
+  const InvoiceDetailsScreen({
+    super.key,
+    required this.invoice,
+    required this.onExport,
+  });
 
   @override
   State<InvoiceDetailsScreen> createState() => _InvoiceDetailsScreenState();
@@ -65,10 +72,28 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     final filteredItems = _filterItemsByCustomerName(sortedItems, _searchQuery);
     final hasSearchQuery = _searchQuery.isNotEmpty;
 
+    final title = currentInvoice.title.trim().isEmpty
+        ? 'فاتورة بدون عنوان'
+        : currentInvoice.title.trim();
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: Text(currentInvoice.title, maxLines: 2)),
+        appBar: AppBar(
+          title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
+
+          // In RTL, actions appear on the left side.
+          actions: [
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 15),
+              child: PdfActionButton(
+                size: 36,
+                iconSize: 19,
+                onPressed: () => widget.onExport(currentInvoice),
+              ),
+            ),
+          ],
+        ),
         floatingActionButton: LiquidFloatingActionButton(
           onPressed: () {
             showInvoiceItemSheet(context, invoice: currentInvoice);
