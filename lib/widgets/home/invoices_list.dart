@@ -57,7 +57,7 @@ class InvoicesList extends StatelessWidget {
         final invoice = invoices[index - 1];
 
         return InvoiceCard(
-          key: ValueKey(invoice.key ?? '${invoice.title}-$index'),
+          key: ValueKey(invoice.key ?? Object.hash(invoice.title, index)),
           invoice: invoice,
           onTap: () => _openInvoiceDetails(context, invoice),
           onLongPress: () => _deleteInvoiceByLongPress(context, invoice),
@@ -71,10 +71,10 @@ class InvoicesList extends StatelessWidget {
   void _openInvoiceDetails(BuildContext context, InvoiceModel invoice) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => InvoiceDetailsScreen(
+        builder: (detailsContext) => InvoiceDetailsScreen(
           invoice: invoice,
           onExport: (selectedInvoice) {
-            _showInvoicePdfActions(context, selectedInvoice);
+            _showInvoicePdfActions(detailsContext, selectedInvoice);
           },
         ),
       ),
@@ -96,7 +96,16 @@ class InvoicesList extends StatelessWidget {
 
     if (confirmed != true || !context.mounted) return;
 
-    await context.read<InvoiceProvider>().deleteInvoice(invoice);
+    final provider = context.read<InvoiceProvider>();
+    final deleted = await provider.deleteInvoice(invoice);
+
+    if (!context.mounted) return;
+
+    if (!deleted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر حذف الفاتورة، حاول مرة أخرى')),
+      );
+    }
   }
 
   Future<bool?> _confirmDeleteInvoice(BuildContext context) {

@@ -28,20 +28,25 @@ class InvoiceItemModel extends HiveObject {
   InvoiceItemModel({
     DateTime? date,
     this.customerName,
-    required this.itemName,
-    required this.price,
+    required String itemName,
+    required double price,
     this.note,
-    required this.isPaid,
+    required bool isPaid,
     double? paidAmount,
   }) : date = date ?? DateTime.now(),
+       itemName = itemName.trim(),
+       price = price < 0 ? 0.0 : price,
+       isPaid = isPaid,
        paidAmount = paidAmount ?? (isPaid ? price : 0.0) {
-    _normalizePaymentState();
-    itemName = itemName.trim();
+    normalizePaymentState();
   }
 
   double get paidValue => isPaid ? price : _clampPayment(paidAmount, price);
 
-  double get remainingValue => price - paidValue;
+  double get remainingValue {
+    final value = price - paidValue;
+    return value <= 0 ? 0.0 : value;
+  }
 
   bool get hasPartialPayment => !isPaid && paidValue > 0;
 
@@ -60,7 +65,8 @@ class InvoiceItemModel extends HiveObject {
     return value == null || value.isEmpty ? 'لا توجد ملاحظات' : value;
   }
 
-  void _normalizePaymentState() {
+  void normalizePaymentState() {
+    itemName = itemName.trim();
     price = price < 0 ? 0.0 : price;
     paidAmount = _clampPayment(isPaid ? price : paidAmount, price);
     isPaid = price > 0 && paidAmount >= price;

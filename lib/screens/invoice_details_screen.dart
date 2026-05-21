@@ -170,16 +170,19 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
         final originalIndex = sortedItem.originalIndex;
 
         return Dismissible(
-          key: ValueKey('${item.date.microsecondsSinceEpoch}-$originalIndex'),
-          direction: DismissDirection.endToStart,
-          confirmDismiss: (_) => _confirmDeleteItem(context),
-          background: const DeleteBackground(),
-          onDismissed: (_) {
-            context.read<InvoiceProvider>().deleteItem(
+          key: ValueKey(
+            '${currentInvoice.key}-${item.date.microsecondsSinceEpoch}-$originalIndex',
+          ),
+          direction: DismissDirection.horizontal,
+          confirmDismiss: (_) {
+            return _confirmAndDeleteItem(
+              context: context,
               invoice: currentInvoice,
               index: originalIndex,
             );
           },
+          background: const DeleteBackground(),
+          secondaryBackground: const DeleteBackground(),
           child: InvoiceItemTile(
             item: item,
             onEdit: () {
@@ -269,6 +272,31 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
         );
       },
     );
+  }
+
+  Future<bool> _confirmAndDeleteItem({
+    required BuildContext context,
+    required InvoiceModel invoice,
+    required int index,
+  }) async {
+    final confirmed = await _confirmDeleteItem(context);
+
+    if (confirmed != true || !context.mounted) return false;
+
+    final deleted = await context.read<InvoiceProvider>().deleteItem(
+      invoice: invoice,
+      index: index,
+    );
+
+    if (!context.mounted) return deleted;
+
+    if (!deleted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر حذف العنصر، حاول مرة أخرى')),
+      );
+    }
+
+    return deleted;
   }
 }
 

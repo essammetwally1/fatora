@@ -1,23 +1,25 @@
+import 'package:hive/hive.dart';
+
 import '../models/invoice_item_model.dart';
 import '../models/invoice_model.dart';
 import '../services/storage/hive_service.dart';
 
 class InvoiceRepository {
+  Box<InvoiceModel> get _box => HiveService.getInvoiceBox();
+
   List<InvoiceModel> getInvoices() {
-    final invoices = HiveService.getInvoiceBox().values.toList(growable: false);
-
+    final invoices = _box.values.toList(growable: false);
     invoices.sort(_compareInvoicesNewestFirst);
-
     return invoices;
   }
 
   Future<InvoiceModel> createInvoice(String title) async {
-    final box = HiveService.getInvoiceBox();
+    final invoice = InvoiceModel(
+      title: title.trim(),
+      items: <InvoiceItemModel>[],
+    );
 
-    final invoice = InvoiceModel(title: title, items: []);
-
-    await box.add(invoice);
-
+    await _box.add(invoice);
     return invoice;
   }
 
@@ -27,26 +29,45 @@ class InvoiceRepository {
   }) async {
     if (invoiceKey == null) return null;
 
-    final invoice = HiveService.getInvoiceBox().get(invoiceKey);
-
+    final invoice = _box.get(invoiceKey);
     if (invoice == null) return null;
 
-    invoice.title = title;
+    final cleanTitle = title.trim();
+    if (cleanTitle.isEmpty) return null;
+
+    invoice.title = cleanTitle;
     await invoice.save();
 
     return invoice;
   }
 
-  Future<bool> deleteInvoice({required dynamic invoiceKey}) async {
-    if (invoiceKey == null) return false;
+  Future<bool> deleteInvoice({
+    required InvoiceModel invoice,
+    dynamic invoiceKey,
+  }) async {
+    final key = invoiceKey ?? invoice.key;
 
-    final box = HiveService.getInvoiceBox();
+    // Main path: delete by Hive key.
+    if (key != null && _box.containsKey(key)) {
+      await _box.delete(key);
+      return !_box.containsKey(key);
+    }
 
-    if (!box.containsKey(invoiceKey)) return false;
+    // Fallback path: if this object is still attached to Hive,
+    // delete it directly through HiveObject.
+    if (invoice.isInBox) {
+      final attachedKey = invoice.key;
 
-    await box.delete(invoiceKey);
+      await invoice.delete();
 
-    return true;
+      if (attachedKey == null) {
+        return !invoice.isInBox;
+      }
+
+      return !_box.containsKey(attachedKey);
+    }
+
+    return false;
   }
 
   Future<InvoiceModel?> addItem({
@@ -55,11 +76,13 @@ class InvoiceRepository {
   }) async {
     if (invoiceKey == null) return null;
 
-    final invoice = HiveService.getInvoiceBox().get(invoiceKey);
-
+    final invoice = _box.get(invoiceKey);
     if (invoice == null) return null;
 
-    invoice.items.add(item);
+    final nextItems = List<InvoiceItemModel>.of(invoice.items, growable: true)
+      ..add(item);
+
+    invoice.items = nextItems;
     await invoice.save();
 
     return invoice;
@@ -72,12 +95,15 @@ class InvoiceRepository {
   }) async {
     if (invoiceKey == null) return null;
 
-    final invoice = HiveService.getInvoiceBox().get(invoiceKey);
-
+    final invoice = _box.get(invoiceKey);
     if (invoice == null) return null;
     if (!_isValidItemIndex(invoice, index)) return null;
 
-    invoice.items[index] = item;
+    final nextItems = List<InvoiceItemModel>.of(invoice.items, growable: true);
+
+    nextItems[index] = item;
+
+    invoice.items = nextItems;
     await invoice.save();
 
     return invoice;
@@ -89,19 +115,21 @@ class InvoiceRepository {
   }) async {
     if (invoiceKey == null) return null;
 
-    final invoice = HiveService.getInvoiceBox().get(invoiceKey);
-
+    final invoice = _box.get(invoiceKey);
     if (invoice == null) return null;
     if (!_isValidItemIndex(invoice, index)) return null;
 
-    invoice.items.removeAt(index);
+    final nextItems = List<InvoiceItemModel>.of(invoice.items, growable: true)
+      ..removeAt(index);
+
+    invoice.items = nextItems;
     await invoice.save();
 
     return invoice;
   }
 
   Future<void> compactInvoicesBox() {
-    return HiveService.getInvoiceBox().compact();
+    return _box.compact();
   }
 
   static int _compareInvoicesNewestFirst(InvoiceModel a, InvoiceModel b) {

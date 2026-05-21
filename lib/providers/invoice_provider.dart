@@ -43,10 +43,10 @@ class InvoiceProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> createInvoice(String title) async {
+  Future<bool> createInvoice(String title) async {
     final cleanTitle = title.trim();
 
-    if (cleanTitle.isEmpty || _isMutating) return;
+    if (cleanTitle.isEmpty || _isMutating) return false;
 
     _isMutating = true;
     notifyListeners();
@@ -65,23 +65,24 @@ class InvoiceProvider extends ChangeNotifier {
       }
 
       _bumpVersion();
+      return true;
     } finally {
       _isMutating = false;
       notifyListeners();
     }
   }
 
-  Future<void> updateInvoiceTitle({
+  Future<bool> updateInvoiceTitle({
     required InvoiceModel invoice,
     required String title,
   }) async {
     final cleanTitle = title.trim();
 
-    if (cleanTitle.isEmpty || _isMutating) return;
-    if (invoice.title == cleanTitle) return;
+    if (cleanTitle.isEmpty || _isMutating) return false;
+    if (invoice.title == cleanTitle) return true;
 
     final invoiceKey = invoice.key;
-    if (invoiceKey == null) return;
+    if (invoiceKey == null) return false;
 
     _isMutating = true;
     notifyListeners();
@@ -92,44 +93,54 @@ class InvoiceProvider extends ChangeNotifier {
         title: cleanTitle,
       );
 
-      if (updatedInvoice == null) return;
+      if (updatedInvoice == null) return false;
 
-      _replaceInvoiceInMemory(updatedInvoice);
+      return _replaceInvoiceInMemory(updatedInvoice);
     } finally {
       _isMutating = false;
       notifyListeners();
     }
   }
 
-  Future<void> deleteInvoice(InvoiceModel invoice) async {
-    if (_isMutating) return;
+  Future<bool> deleteInvoice(InvoiceModel invoice) async {
+    if (_isMutating) return false;
 
     final invoiceKey = invoice.key;
-    if (invoiceKey == null) return;
 
     _isMutating = true;
     notifyListeners();
 
     try {
-      final deleted = await _repository.deleteInvoice(invoiceKey: invoiceKey);
+      final deleted = await _repository.deleteInvoice(
+        invoice: invoice,
+        invoiceKey: invoiceKey,
+      );
 
-      if (!deleted) return;
+      if (!deleted) {
+        return false;
+      }
 
-      _removeInvoiceFromMemory(invoiceKey);
+      if (invoiceKey != null) {
+        _removeInvoiceFromMemory(invoiceKey);
+      } else {
+        loadInvoices(notify: false);
+      }
+
+      return true;
     } finally {
       _isMutating = false;
       notifyListeners();
     }
   }
 
-  Future<void> addItem({
+  Future<bool> addItem({
     required InvoiceModel invoice,
     required InvoiceItemModel item,
   }) async {
-    if (_isMutating) return;
+    if (_isMutating) return false;
 
     final invoiceKey = invoice.key;
-    if (invoiceKey == null) return;
+    if (invoiceKey == null) return false;
 
     _isMutating = true;
     notifyListeners();
@@ -140,24 +151,24 @@ class InvoiceProvider extends ChangeNotifier {
         item: item,
       );
 
-      if (updatedInvoice == null) return;
+      if (updatedInvoice == null) return false;
 
-      _replaceInvoiceInMemory(updatedInvoice);
+      return _replaceInvoiceInMemory(updatedInvoice);
     } finally {
       _isMutating = false;
       notifyListeners();
     }
   }
 
-  Future<void> updateItem({
+  Future<bool> updateItem({
     required InvoiceModel invoice,
     required int index,
     required InvoiceItemModel item,
   }) async {
-    if (_isMutating) return;
+    if (_isMutating) return false;
 
     final invoiceKey = invoice.key;
-    if (invoiceKey == null) return;
+    if (invoiceKey == null) return false;
 
     _isMutating = true;
     notifyListeners();
@@ -169,23 +180,23 @@ class InvoiceProvider extends ChangeNotifier {
         item: item,
       );
 
-      if (updatedInvoice == null) return;
+      if (updatedInvoice == null) return false;
 
-      _replaceInvoiceInMemory(updatedInvoice);
+      return _replaceInvoiceInMemory(updatedInvoice);
     } finally {
       _isMutating = false;
       notifyListeners();
     }
   }
 
-  Future<void> deleteItem({
+  Future<bool> deleteItem({
     required InvoiceModel invoice,
     required int index,
   }) async {
-    if (_isMutating) return;
+    if (_isMutating) return false;
 
     final invoiceKey = invoice.key;
-    if (invoiceKey == null) return;
+    if (invoiceKey == null) return false;
 
     _isMutating = true;
     notifyListeners();
@@ -196,9 +207,9 @@ class InvoiceProvider extends ChangeNotifier {
         index: index,
       );
 
-      if (updatedInvoice == null) return;
+      if (updatedInvoice == null) return false;
 
-      _replaceInvoiceInMemory(updatedInvoice);
+      return _replaceInvoiceInMemory(updatedInvoice);
     } finally {
       _isMutating = false;
       notifyListeners();
@@ -223,14 +234,14 @@ class InvoiceProvider extends ChangeNotifier {
     _bumpVersion();
   }
 
-  void _replaceInvoiceInMemory(InvoiceModel updatedInvoice) {
+  bool _replaceInvoiceInMemory(InvoiceModel updatedInvoice) {
     final updatedKey = updatedInvoice.key;
 
-    if (updatedKey == null) return;
+    if (updatedKey == null) return false;
 
     final index = _invoices.indexWhere((invoice) => invoice.key == updatedKey);
 
-    if (index == -1) return;
+    if (index == -1) return false;
 
     final nextInvoices = List<InvoiceModel>.of(_invoices, growable: true);
     nextInvoices[index] = updatedInvoice;
@@ -239,16 +250,23 @@ class InvoiceProvider extends ChangeNotifier {
     _invoiceByKey[updatedKey] = updatedInvoice;
 
     _bumpVersion();
+    return true;
   }
 
   void _removeInvoiceFromMemory(dynamic invoiceKey) {
+    final beforeLength = _invoices.length;
+
     _invoices = List<InvoiceModel>.unmodifiable(
       _invoices.where((invoice) => invoice.key != invoiceKey),
     );
 
     _invoiceByKey.remove(invoiceKey);
 
-    _bumpVersion();
+    if (_invoices.length != beforeLength) {
+      _bumpVersion();
+    } else {
+      loadInvoices(notify: false);
+    }
   }
 
   void _bumpVersion() {
