@@ -103,7 +103,7 @@ class InvoiceItemTile extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 'المتبقي ${Formatters.formatMoney(item.remainingValue)}',
-                                maxLines: 1,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: colorScheme.onSurfaceVariant,
