@@ -39,7 +39,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final ValueNotifier<bool> _searchVisibleNotifier = ValueNotifier<bool>(true);
 
   Timer? _searchDebounce;
 
@@ -66,8 +65,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ..removeListener(_onSearchChanged)
       ..dispose();
 
-    _searchVisibleNotifier.dispose();
-
     super.dispose();
   }
 
@@ -85,11 +82,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _searchQuery = nextQuery;
       });
     });
-  }
-
-  void _setSearchVisible(bool visible) {
-    if (_searchVisibleNotifier.value == visible) return;
-    _searchVisibleNotifier.value = visible;
   }
 
   @override
@@ -126,8 +118,6 @@ class _HomeScreenState extends State<HomeScreen> {
           totals: totals,
           searchController: _searchController,
           searchQuery: _searchQuery,
-          searchVisibleListenable: _searchVisibleNotifier,
-          onSearchVisibilityChanged: _setSearchVisible,
           onClearSearch: _searchController.clear,
           onEditInvoice: (invoice) {
             _openInvoiceNameDialog(context, invoice: invoice);
