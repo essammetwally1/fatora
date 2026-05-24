@@ -40,7 +40,7 @@ class InvoicesList extends StatelessWidget {
 
     return ListView.separated(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
       scrollCacheExtent: ScrollCacheExtent.pixels(700),
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
