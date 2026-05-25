@@ -41,46 +41,47 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDI_s78IgIrMNOkN2PSydyrLwwJg5nI2zs',
-    appId: '1:928748820187:web:f0394b1c41b131dc935efe',
-    messagingSenderId: '928748820187',
-    projectId: 'fatora-ac6f7',
-    authDomain: 'fatora-ac6f7.firebaseapp.com',
-    storageBucket: 'fatora-ac6f7.firebasestorage.app',
+    apiKey: 'AIzaSyBJ_lKgTcnzNq2Q0swklyGIMkfN214lqUQ',
+    appId: '1:631217389920:web:a76d6b1eb59defdd381e05',
+    messagingSenderId: '631217389920',
+    projectId: 'fatora-dec33',
+    authDomain: 'fatora-dec33.firebaseapp.com',
+    storageBucket: 'fatora-dec33.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCbhggqmHIE-6hCxHSMxFq3g00xxlflYSo',
-    appId: '1:928748820187:android:0fb9b019178e783c935efe',
-    messagingSenderId: '928748820187',
-    projectId: 'fatora-ac6f7',
-    storageBucket: 'fatora-ac6f7.firebasestorage.app',
+    apiKey: 'AIzaSyAYsVnZ6wbNIFJ4sOejLic3VTaP5EKF9ag',
+    appId: '1:631217389920:android:ed97e47a5c7a919a381e05',
+    messagingSenderId: '631217389920',
+    projectId: 'fatora-dec33',
+    storageBucket: 'fatora-dec33.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBL_1CvsCYk630NwjV8RI3ULJ77DTGpaRs',
-    appId: '1:928748820187:ios:b1172a8b9e0af1a7935efe',
-    messagingSenderId: '928748820187',
-    projectId: 'fatora-ac6f7',
-    storageBucket: 'fatora-ac6f7.firebasestorage.app',
+    apiKey: 'AIzaSyC7OwUfTSchhpMpNJxjDOPc4_47kza9dgM',
+    appId: '1:631217389920:ios:2af8b975201207e4381e05',
+    messagingSenderId: '631217389920',
+    projectId: 'fatora-dec33',
+    storageBucket: 'fatora-dec33.firebasestorage.app',
     iosBundleId: 'com.example.fatora',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyBL_1CvsCYk630NwjV8RI3ULJ77DTGpaRs',
-    appId: '1:928748820187:ios:b1172a8b9e0af1a7935efe',
-    messagingSenderId: '928748820187',
-    projectId: 'fatora-ac6f7',
-    storageBucket: 'fatora-ac6f7.firebasestorage.app',
+    apiKey: 'AIzaSyC7OwUfTSchhpMpNJxjDOPc4_47kza9dgM',
+    appId: '1:631217389920:ios:2af8b975201207e4381e05',
+    messagingSenderId: '631217389920',
+    projectId: 'fatora-dec33',
+    storageBucket: 'fatora-dec33.firebasestorage.app',
     iosBundleId: 'com.example.fatora',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDI_s78IgIrMNOkN2PSydyrLwwJg5nI2zs',
-    appId: '1:928748820187:web:1973bd470d246097935efe',
-    messagingSenderId: '928748820187',
-    projectId: 'fatora-ac6f7',
-    authDomain: 'fatora-ac6f7.firebaseapp.com',
-    storageBucket: 'fatora-ac6f7.firebasestorage.app',
+    apiKey: 'AIzaSyBJ_lKgTcnzNq2Q0swklyGIMkfN214lqUQ',
+    appId: '1:631217389920:web:e8a7265cfa57f2ec381e05',
+    messagingSenderId: '631217389920',
+    projectId: 'fatora-dec33',
+    authDomain: 'fatora-dec33.firebaseapp.com',
+    storageBucket: 'fatora-dec33.firebasestorage.app',
   );
+
 }

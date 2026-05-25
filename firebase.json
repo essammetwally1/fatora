@@ -3,20 +3,20 @@
     "platforms": {
       "android": {
         "default": {
-          "projectId": "fatora-ac6f7",
-          "appId": "1:928748820187:android:0fb9b019178e783c935efe",
+          "projectId": "fatora-dec33",
+          "appId": "1:631217389920:android:ed97e47a5c7a919a381e05",
           "fileOutput": "android/app/google-services.json"
         }
       },
       "dart": {
         "lib/firebase_options.dart": {
-          "projectId": "fatora-ac6f7",
+          "projectId": "fatora-dec33",
           "configurations": {
-            "android": "1:928748820187:android:0fb9b019178e783c935efe",
-            "ios": "1:928748820187:ios:b1172a8b9e0af1a7935efe",
-            "macos": "1:928748820187:ios:b1172a8b9e0af1a7935efe",
-            "web": "1:928748820187:web:f0394b1c41b131dc935efe",
-            "windows": "1:928748820187:web:1973bd470d246097935efe"
+            "android": "1:631217389920:android:ed97e47a5c7a919a381e05",
+            "ios": "1:631217389920:ios:2af8b975201207e4381e05",
+            "macos": "1:631217389920:ios:2af8b975201207e4381e05",
+            "web": "1:631217389920:web:a76d6b1eb59defdd381e05",
+            "windows": "1:631217389920:web:e8a7265cfa57f2ec381e05"
           }
         }
       }

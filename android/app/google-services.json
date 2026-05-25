@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "928748820187",
-    "project_id": "fatora-ac6f7",
-    "storage_bucket": "fatora-ac6f7.firebasestorage.app"
+    "project_number": "631217389920",
+    "project_id": "fatora-dec33",
+    "storage_bucket": "fatora-dec33.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:928748820187:android:0fb9b019178e783c935efe",
+        "mobilesdk_app_id": "1:631217389920:android:ed97e47a5c7a919a381e05",
         "android_client_info": {
-          "package_name": "com.example.fatora"
+          "package_name": "com.essamtech.fatora"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCbhggqmHIE-6hCxHSMxFq3g00xxlflYSo"
+          "current_key": "AIzaSyAYsVnZ6wbNIFJ4sOejLic3VTaP5EKF9ag"
         }
       ],
       "services": {
