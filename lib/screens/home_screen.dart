@@ -22,7 +22,6 @@ class _InvoicesState {
   bool operator ==(Object other) {
     return identical(this, other) ||
         other is _InvoicesState &&
-            runtimeType == other.runtimeType &&
             identical(invoices, other.invoices) &&
             version == other.version;
   }
@@ -44,9 +43,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _searchDebounce;
 
   String _searchQuery = '';
-
-  int? _lastSortVersion;
-  List<InvoiceModel> _sortedInvoices = const [];
 
   int? _lastFilterVersion;
   String? _lastFilterQuery;
@@ -100,13 +96,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final invoices = invoicesState.invoices;
     final version = invoicesState.version;
 
-    final sortedInvoices = _getSortedInvoices(
-      invoices: invoices,
-      version: version,
-    );
-
     final filteredInvoices = _getFilteredInvoices(
-      sortedInvoices: sortedInvoices,
+      invoices: invoices,
       version: version,
     );
 
@@ -136,35 +127,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  List<InvoiceModel> _getSortedInvoices({
-    required List<InvoiceModel> invoices,
-    required int version,
-  }) {
-    if (_lastSortVersion == version) {
-      return _sortedInvoices;
-    }
-
-    final sorted = List<InvoiceModel>.of(invoices, growable: false);
-
-    sorted.sort((a, b) {
-      final aKey = a.key;
-      final bKey = b.key;
-
-      if (aKey is int && bKey is int) {
-        return bKey.compareTo(aKey);
-      }
-
-      return 0;
-    });
-
-    _lastSortVersion = version;
-    _sortedInvoices = sorted;
-
-    return _sortedInvoices;
-  }
-
   List<InvoiceModel> _getFilteredInvoices({
-    required List<InvoiceModel> sortedInvoices,
+    required List<InvoiceModel> invoices,
     required int version,
   }) {
     if (_lastFilterVersion == version && _lastFilterQuery == _searchQuery) {
@@ -172,9 +136,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (_searchQuery.isEmpty) {
-      _filteredInvoices = sortedInvoices;
+      _filteredInvoices = invoices;
     } else {
-      _filteredInvoices = sortedInvoices
+      _filteredInvoices = invoices
           .where((invoice) {
             final title = SearchUtils.normalize(invoice.title);
             return title.contains(_searchQuery);

@@ -10,15 +10,18 @@ class InvoiceNameDialog extends StatefulWidget {
 }
 
 class _InvoiceNameDialogState extends State<InvoiceNameDialog> {
-  final _formKey = GlobalKey<FormState>();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _controller;
+
+  bool _isSubmitting = false;
 
   bool get _isEditing => widget.initialTitle != null;
 
   @override
   void initState() {
     super.initState();
+
     _controller = TextEditingController(text: widget.initialTitle ?? '');
   }
 
@@ -44,23 +47,17 @@ class _InvoiceNameDialogState extends State<InvoiceNameDialog> {
               labelText: 'اسم الفاتورة',
               hintText: 'مثال: حسابات عصام',
             ),
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'اسم الفاتورة مطلوب';
-              }
-
-              return null;
-            },
+            validator: _validateTitle,
             onFieldSubmitted: (_) => _submit(),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: _isSubmitting ? null : () => Navigator.pop(context),
             child: const Text('إلغاء'),
           ),
           FilledButton(
-            onPressed: _submit,
+            onPressed: _isSubmitting ? null : _submit,
             child: Text(_isEditing ? 'حفظ' : 'إنشاء'),
           ),
         ],
@@ -68,10 +65,24 @@ class _InvoiceNameDialogState extends State<InvoiceNameDialog> {
     );
   }
 
+  String? _validateTitle(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'اسم الفاتورة مطلوب';
+    }
+
+    return null;
+  }
+
   void _submit() {
-    if (!_formKey.currentState!.validate()) return;
+    if (_isSubmitting) return;
+
+    final formState = _formKey.currentState;
+    if (formState == null || !formState.validate()) return;
+
+    _isSubmitting = true;
 
     FocusScope.of(context).unfocus();
+
     Navigator.pop(context, _controller.text.trim());
   }
 }

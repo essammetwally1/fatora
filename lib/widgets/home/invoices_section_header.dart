@@ -16,7 +16,7 @@ class InvoicesSectionHeader extends StatelessWidget {
         children: [
           Container(
             width: 5,
-            height: 24,
+            height: 26,
             decoration: BoxDecoration(
               color: colorScheme.primary,
               borderRadius: BorderRadius.circular(20),
@@ -27,21 +27,26 @@ class InvoicesSectionHeader extends StatelessWidget {
             child: Text(
               'الفواتير',
               style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w900,
+                height: 1,
               ),
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
             decoration: BoxDecoration(
               color: colorScheme.primary.withValues(alpha: .10),
               borderRadius: BorderRadius.circular(99),
+              border: Border.all(
+                color: colorScheme.primary.withValues(alpha: .12),
+              ),
             ),
             child: Text(
               '$invoiceCount فاتورة',
               style: theme.textTheme.labelMedium?.copyWith(
                 color: colorScheme.primary,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w800,
+                height: 1,
               ),
             ),
           ),

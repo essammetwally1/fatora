@@ -1,7 +1,7 @@
-import 'package:fatora/widgets/delete_background.dart';
 import 'package:fatora/widgets/home/invoice_card.dart';
 import 'package:fatora/widgets/home/invoice_pdf_actions_sheet.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/models/invoice_model.dart';
@@ -40,8 +40,8 @@ class InvoicesList extends StatelessWidget {
 
     return ListView.separated(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-      cacheExtent: 600,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
+      scrollCacheExtent: ScrollCacheExtent.pixels(700),
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
       addSemanticIndexes: false,
@@ -56,32 +56,56 @@ class InvoicesList extends StatelessWidget {
 
         final invoice = invoices[index - 1];
 
-        return Dismissible(
-          key: ValueKey(invoice.key ?? '${invoice.title}-$index'),
-          direction: DismissDirection.endToStart,
-          confirmDismiss: (_) => _confirmDeleteInvoice(context),
-          background: const DeleteBackground(),
-          onDismissed: (_) {
-            context.read<InvoiceProvider>().deleteInvoice(invoice);
-          },
-          child: InvoiceCard(
-            invoice: invoice,
-            onTap: () => _openInvoiceDetails(context, invoice),
-            onEdit: () => onEditInvoice(invoice),
-            onExport: () {
-              InvoicePdfActionsSheet.show(context: context, invoice: invoice);
-            },
-          ),
+        return InvoiceCard(
+          key: ValueKey(invoice.key ?? Object.hash(invoice.title, index)),
+          invoice: invoice,
+          onTap: () => _openInvoiceDetails(context, invoice),
+          onLongPress: () => _deleteInvoiceByLongPress(context, invoice),
+          onEdit: () => onEditInvoice(invoice),
+          onExport: () => _showInvoicePdfActions(context, invoice),
         );
       },
     );
   }
 
   void _openInvoiceDetails(BuildContext context, InvoiceModel invoice) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => InvoiceDetailsScreen(invoice: invoice)),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (detailsContext) => InvoiceDetailsScreen(
+          invoice: invoice,
+          onExport: (selectedInvoice) {
+            _showInvoicePdfActions(detailsContext, selectedInvoice);
+          },
+        ),
+      ),
     );
+  }
+
+  static void _showInvoicePdfActions(
+    BuildContext context,
+    InvoiceModel invoice,
+  ) {
+    InvoicePdfActionsSheet.show(context: context, invoice: invoice);
+  }
+
+  Future<void> _deleteInvoiceByLongPress(
+    BuildContext context,
+    InvoiceModel invoice,
+  ) async {
+    final confirmed = await _confirmDeleteInvoice(context);
+
+    if (confirmed != true || !context.mounted) return;
+
+    final provider = context.read<InvoiceProvider>();
+    final deleted = await provider.deleteInvoice(invoice);
+
+    if (!context.mounted) return;
+
+    if (!deleted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر حذف الفاتورة، حاول مرة أخرى')),
+      );
+    }
   }
 
   Future<bool?> _confirmDeleteInvoice(BuildContext context) {

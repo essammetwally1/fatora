@@ -1,5 +1,3 @@
-// invoice_model.dart
-
 import 'package:hive/hive.dart';
 
 import 'invoice_item_model.dart';
@@ -14,7 +12,9 @@ class InvoiceModel extends HiveObject {
   @HiveField(1)
   List<InvoiceItemModel> items;
 
-  InvoiceModel({required this.title, required this.items});
+  InvoiceModel({required String title, required List<InvoiceItemModel> items})
+    : title = title.trim(),
+      items = List<InvoiceItemModel>.of(items, growable: true);
 
   int get itemCount => items.length;
 
