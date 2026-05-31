@@ -28,20 +28,14 @@ class InvoicesTotals {
   factory InvoicesTotals.fromInvoices(List<InvoiceModel> invoices) {
     if (invoices.isEmpty) return InvoicesTotals.empty();
 
-    double total = 0.0;
-    double paid = 0.0;
-    int itemCount = 0;
+    var total = 0.0;
+    var paid = 0.0;
+    var itemCount = 0;
 
     for (final invoice in invoices) {
-      final items = invoice.items;
-      itemCount += items.length;
-
-      for (final item in items) {
-        item.normalizePaymentState();
-
-        total += item.price;
-        paid += item.paidValue;
-      }
+      total += invoice.total;
+      paid += invoice.paidTotal;
+      itemCount += invoice.items.length;
     }
 
     final remaining = total - paid;

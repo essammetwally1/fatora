@@ -19,8 +19,6 @@ class InvoiceModelAdapter extends TypeAdapter<InvoiceModel> {
     return InvoiceModel(
       title: fields[0] as String,
       items: (fields[1] as List).cast<InvoiceItemModel>(),
-      // for deprecated  version of hive
-      // paidAmount: (fields[2] as num?)?.toDouble() ?? 0.0,
       paidAmount: fields[2] == null ? 0.0 : fields[2] as double,
     );
   }

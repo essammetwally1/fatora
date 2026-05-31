@@ -20,9 +20,6 @@ class InvoicePdfGenerator {
   static final PdfColor _line = PdfColor.fromHex('#D8B56A');
   static final PdfColor _softRow = PdfColor.fromHex('#FBF6EA');
 
-  static final PdfColor _success = PdfColor.fromHex('#16A34A');
-  static final PdfColor _danger = PdfColor.fromHex('#DC2626');
-
   static const PdfColor _bgGold = PdfColor(0.72, 0.54, 0.21, 0.10);
   static const PdfColor _bgNavy = PdfColor(0.02, 0.12, 0.23, 0.06);
 
@@ -250,47 +247,6 @@ class InvoicePdfGenerator {
     );
   }
 
-  static pw.Widget _modernLogoSquare(pw.ImageProvider? logo) {
-    return pw.Container(
-      width: 82,
-      height: 82,
-      padding: const pw.EdgeInsets.all(5),
-      decoration: pw.BoxDecoration(
-        color: _white,
-        borderRadius: pw.BorderRadius.circular(18),
-        border: pw.Border.all(color: _gold, width: 1.25),
-      ),
-      child: pw.Container(
-        padding: const pw.EdgeInsets.all(5),
-        decoration: pw.BoxDecoration(
-          color: _white,
-          borderRadius: pw.BorderRadius.circular(14),
-          border: pw.Border.all(
-            color: const PdfColor(.02, .12, .23, .10),
-            width: .5,
-          ),
-        ),
-        child: logo == null
-            ? pw.Center(
-                child: pw.Text(
-                  'MS',
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                    color: _navy,
-                    fontSize: 22,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              )
-            : pw.ClipRRect(
-                horizontalRadius: 12,
-                verticalRadius: 12,
-                child: pw.Image(logo, fit: pw.BoxFit.contain),
-              ),
-      ),
-    );
-  }
-
   static pw.Widget _simpleCenteredBrandName() {
     return pw.Container(
       height: 86,
@@ -351,6 +307,47 @@ class InvoicePdfGenerator {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  static pw.Widget _modernLogoSquare(pw.ImageProvider? logo) {
+    return pw.Container(
+      width: 82,
+      height: 82,
+      padding: const pw.EdgeInsets.all(5),
+      decoration: pw.BoxDecoration(
+        color: _white,
+        borderRadius: pw.BorderRadius.circular(18),
+        border: pw.Border.all(color: _gold, width: 1.25),
+      ),
+      child: pw.Container(
+        padding: const pw.EdgeInsets.all(5),
+        decoration: pw.BoxDecoration(
+          color: _white,
+          borderRadius: pw.BorderRadius.circular(14),
+          border: pw.Border.all(
+            color: const PdfColor(.02, .12, .23, .10),
+            width: .5,
+          ),
+        ),
+        child: logo == null
+            ? pw.Center(
+                child: pw.Text(
+                  'MS',
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(
+                    color: _navy,
+                    fontSize: 22,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              )
+            : pw.ClipRRect(
+                horizontalRadius: 12,
+                verticalRadius: 12,
+                child: pw.Image(logo, fit: pw.BoxFit.contain),
+              ),
       ),
     );
   }
@@ -573,12 +570,10 @@ class InvoicePdfGenerator {
           _tableDivider(height: 34),
           pw.Expanded(
             flex: 2,
-            child: _tableText(
+            child: _priceText(
               Formatters.formatMoney(item.price),
+              fontSize: 10.9,
               color: _navy,
-              bold: true,
-              center: true,
-              fontSize: 11.4,
             ),
           ),
         ],
@@ -602,20 +597,23 @@ class InvoicePdfGenerator {
             value: Formatters.formatMoney(invoice.total),
             height: 38,
             isLast: false,
+            isMain: true,
           ),
-          pw.Container(height: .55, color: _line),
+          pw.Container(height: 1, color: _line),
           _invoiceMoneyRow(
             label: 'المبلغ المدفوع',
             value: Formatters.formatMoney(invoice.paidTotal),
             height: 36,
             isLast: false,
+            isMain: false,
           ),
-          pw.Container(height: .55, color: _line),
+          pw.Container(height: 1, color: _line),
           _invoiceMoneyRow(
             label: 'المبلغ المتبقي',
             value: Formatters.formatMoney(invoice.unpaidTotal),
             height: 36,
             isLast: true,
+            isMain: false,
           ),
         ],
       ),
@@ -627,6 +625,7 @@ class InvoicePdfGenerator {
     required String value,
     required double height,
     required bool isLast,
+    required bool isMain,
   }) {
     return pw.Row(
       children: [
@@ -649,13 +648,13 @@ class InvoicePdfGenerator {
               textAlign: pw.TextAlign.center,
               style: pw.TextStyle(
                 color: _navy,
-                fontSize: 12,
+                fontSize: isMain ? 12 : 11.4,
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
           ),
         ),
-        pw.Container(width: .8, height: height, color: _line),
+        pw.Container(width: 1, height: height, color: _line),
         pw.Expanded(
           flex: 3,
           child: pw.Container(
@@ -676,13 +675,35 @@ class InvoicePdfGenerator {
               textDirection: pw.TextDirection.ltr,
               style: pw.TextStyle(
                 color: _gold,
-                fontSize: 12,
-                fontWeight: pw.FontWeight.bold,
+                fontSize: isMain ? 11.8 : 11.3,
+                fontWeight: pw.FontWeight.normal,
               ),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  static pw.Widget _priceText(
+    String text, {
+    required PdfColor color,
+    required double fontSize,
+  }) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      alignment: pw.Alignment.center,
+      child: pw.Text(
+        text,
+        maxLines: 1,
+        textAlign: pw.TextAlign.center,
+        textDirection: pw.TextDirection.ltr,
+        style: pw.TextStyle(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: pw.FontWeight.normal,
+        ),
+      ),
     );
   }
 

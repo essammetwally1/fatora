@@ -35,7 +35,7 @@ class HomeBody extends StatelessWidget {
       return HomeEmptyState(color: colorScheme.primary);
     }
 
-    final hasSearchQuery = searchQuery.isNotEmpty;
+    final hasSearchQuery = searchQuery.trim().isNotEmpty;
 
     return Column(
       children: [
@@ -43,7 +43,6 @@ class HomeBody extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: HomeTotalsSection(totals: totals),
         ),
-
         CustomerSearchField(
           controller: searchController,
           enabled: true,
@@ -52,7 +51,6 @@ class HomeBody extends StatelessWidget {
           enabledHintText: 'اكتب اسم الفاتورة فقط',
           disabledHintText: 'أضف فواتير أولاً لتفعيل البحث',
         ),
-
         Expanded(
           child: InvoicesList(
             invoices: visibleInvoices,
@@ -61,104 +59,98 @@ class HomeBody extends StatelessWidget {
             onEditInvoice: onEditInvoice,
           ),
         ),
-
         if (hasSearchQuery && visibleInvoices.isNotEmpty)
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 108, 8),
-              child: Align(
+          _SearchResultIndicator(count: visibleInvoices.length),
+      ],
+    );
+  }
+}
+
+class _SearchResultIndicator extends StatelessWidget {
+  final int count;
+
+  const _SearchResultIndicator({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 108, 8),
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TweenAnimationBuilder<double>(
+            key: ValueKey<int>(count),
+            tween: Tween<double>(begin: .94, end: 1),
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            builder: (context, scale, child) {
+              return Transform.scale(
+                scale: scale,
                 alignment: AlignmentDirectional.centerStart,
-                child: TweenAnimationBuilder<double>(
-                  key: ValueKey<int>(visibleInvoices.length),
-                  tween: Tween(begin: .94, end: 1),
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  builder: (context, scale, child) {
-                    return Transform.scale(
-                      scale: scale,
-                      alignment: AlignmentDirectional.centerStart,
-                      child: child,
-                    );
-                  },
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: AlignmentDirectional.centerStart,
-                        end: AlignmentDirectional.centerEnd,
-                        colors: [
-                          colorScheme.primary.withValues(alpha: .14),
-                          colorScheme.primary.withValues(alpha: .06),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: colorScheme.primary.withValues(alpha: .16),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: colorScheme.primary.withValues(alpha: .08),
-                          blurRadius: 14,
-                          offset: const Offset(0, 6),
+                child: child,
+              );
+            },
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: colorScheme.primary.withValues(alpha: .18),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: .07),
+                      blurRadius: 16,
+                      offset: const Offset(0, 7),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(8, 6, 12, 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary,
+                          shape: BoxShape.circle,
                         ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.fromSTEB(
-                        8,
-                        6,
-                        12,
-                        6,
+                        child: Icon(
+                          Icons.manage_search_rounded,
+                          color: colorScheme.onPrimary,
+                          size: 16,
+                        ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 26,
-                            height: 26,
-                            decoration: BoxDecoration(
-                              color: colorScheme.primary,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: colorScheme.primary.withValues(
-                                    alpha: .22,
-                                  ),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              Icons.manage_search_rounded,
-                              color: colorScheme.onPrimary,
-                              size: 16,
-                            ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'تم عرض $count نتيجة مطابقة',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.start,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurface,
+                            fontWeight: FontWeight.w900,
+                            height: 1,
                           ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              'تم عرض ${visibleInvoices.length} نتيجة مطابقة',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.start,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Colors.white70,
-                                    fontWeight: FontWeight.w900,
-                                    height: 1,
-                                  ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
-      ],
+        ),
+      ),
     );
   }
 }

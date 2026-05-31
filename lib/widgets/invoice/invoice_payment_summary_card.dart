@@ -17,54 +17,26 @@ class InvoicePaymentSummaryCard extends StatefulWidget {
 }
 
 class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
-  late final TextEditingController _paymentController;
-  late final FocusNode _paymentFocusNode;
+  final TextEditingController _paymentController = TextEditingController();
+  final FocusNode _paymentFocusNode = FocusNode();
 
   bool _saving = false;
   String? _errorText;
-
-  @override
-  void initState() {
-    super.initState();
-    _paymentController = TextEditingController();
-    _paymentFocusNode = FocusNode();
-  }
-
-  @override
-  void dispose() {
-    _paymentController.dispose();
-    _paymentFocusNode.dispose();
-    super.dispose();
-  }
+  double _typedPayment = 0.0;
 
   double get _currentPaid => widget.invoice.paidTotal;
-
   double get _total => widget.invoice.total;
-
   double get _currentRemaining => widget.invoice.unpaidTotal;
 
-  double get _enteredPayment {
-    final parsed = double.tryParse(
-      _paymentController.text.trim().replaceAll(',', '.'),
-    );
-
-    if (parsed == null || parsed.isNaN || parsed.isInfinite) return 0.0;
-    return parsed;
-  }
-
   double get _validPaymentPreview {
-    final entered = _enteredPayment;
-
-    if (entered <= 0) return 0.0;
-    if (entered > _currentRemaining) return _currentRemaining;
-
-    return entered;
+    if (_typedPayment <= 0) return 0.0;
+    if (_typedPayment > _currentRemaining) return _currentRemaining;
+    return _typedPayment;
   }
 
   double get _paidAfterPreview {
     final value = _currentPaid + _validPaymentPreview;
-    if (value > _total) return _total;
-    return value;
+    return value > _total ? _total : value;
   }
 
   double get _remainingAfterPreview {
@@ -73,25 +45,13 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
   }
 
   bool get _isComplete => _total > 0 && _paidAfterPreview >= _total;
-
   bool get _isPartial => _paidAfterPreview > 0 && !_isComplete;
 
-  Color _statusColor(ColorScheme colorScheme) {
-    if (_isComplete) return Colors.green;
-    if (_isPartial) return Colors.blue;
-    return colorScheme.error;
-  }
-
-  String get _statusText {
-    if (_isComplete) return 'مدفوعة بالكامل';
-    if (_isPartial) return 'مدفوعة جزئياً';
-    return 'غير مدفوعة';
-  }
-
-  IconData get _statusIcon {
-    if (_isComplete) return Icons.check_circle_rounded;
-    if (_isPartial) return Icons.timelapse_rounded;
-    return Icons.error_outline_rounded;
+  @override
+  void dispose() {
+    _paymentController.dispose();
+    _paymentFocusNode.dispose();
+    super.dispose();
   }
 
   @override
@@ -99,6 +59,7 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final statusColor = _statusColor(colorScheme);
+    final canPay = _currentRemaining > 0 && !_saving;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -113,30 +74,11 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
         ),
         child: Column(
           children: [
-            Row(
-              children: [
-                Icon(_statusIcon, color: statusColor, size: 21),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Text(
-                    _statusText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: statusColor,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${_paymentPercent()}%',
-                  textDirection: TextDirection.ltr,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
+            _StatusHeader(
+              icon: _statusIcon,
+              text: _statusText,
+              percent: _paymentPercent(),
+              color: statusColor,
             ),
             const SizedBox(height: 10),
             LinearProgressIndicator(
@@ -176,7 +118,7 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
             TextFormField(
               controller: _paymentController,
               focusNode: _paymentFocusNode,
-              enabled: _currentRemaining > 0 && !_saving,
+              enabled: canPay,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
                 signed: false,
@@ -190,9 +132,7 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
                 isDense: true,
                 labelText: 'دفعة جديدة',
                 labelStyle: theme.textTheme.labelMedium?.copyWith(
-                  color: widget.invoice.canEditItems
-                      ? colorScheme.onSurfaceVariant
-                      : Colors.green,
+                  color: canPay ? colorScheme.onSurfaceVariant : Colors.green,
                   fontWeight: FontWeight.w600,
                   fontSize: 16,
                 ),
@@ -209,17 +149,12 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
                     ? null
                     : IconButton(
                         tooltip: 'مسح',
-                        onPressed: () {
-                          _paymentController.clear();
-                          setState(() => _errorText = null);
-                        },
+                        onPressed: _clearPaymentInput,
                         icon: const Icon(Icons.close_rounded, size: 20),
                       ),
               ),
               onTapOutside: (_) => _paymentFocusNode.unfocus(),
-              onChanged: (_) {
-                setState(() => _errorText = _validatePaymentText());
-              },
+              onChanged: _onPaymentChanged,
               onFieldSubmitted: (_) => _submitPayment(),
             ),
             const SizedBox(height: 9),
@@ -232,9 +167,7 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
                     color: Colors.green,
                     filled: true,
                     loading: _saving,
-                    onPressed: _saving || _currentRemaining <= 0
-                        ? null
-                        : _completePayment,
+                    onPressed: canPay ? _completePayment : null,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -245,9 +178,7 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
                     color: statusColor,
                     filled: false,
                     loading: _saving,
-                    onPressed: _saving || _currentRemaining <= 0
-                        ? null
-                        : _submitPayment,
+                    onPressed: canPay ? _submitPayment : null,
                   ),
                 ),
               ],
@@ -258,44 +189,80 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
     );
   }
 
+  void _onPaymentChanged(String value) {
+    final parsed = _parsePayment(value);
+    final error = _validatePaymentValue(parsed, value);
+
+    setState(() {
+      _typedPayment = parsed ?? 0.0;
+      _errorText = error;
+    });
+  }
+
+  void _clearPaymentInput() {
+    _paymentController.clear();
+    setState(() {
+      _typedPayment = 0.0;
+      _errorText = null;
+    });
+  }
+
+  double? _parsePayment(String value) {
+    final clean = value.trim().replaceAll(',', '.');
+    if (clean.isEmpty) return null;
+
+    final parsed = double.tryParse(clean);
+    if (parsed == null || parsed.isNaN || parsed.isInfinite) return null;
+
+    return parsed;
+  }
+
   String? _validatePaymentText() {
-    final text = _paymentController.text.trim();
+    return _validatePaymentValue(
+      _parsePayment(_paymentController.text),
+      _paymentController.text,
+    );
+  }
+
+  String? _validatePaymentValue(double? value, String rawText) {
+    final text = rawText.trim();
 
     if (text.isEmpty) return null;
-
-    final value = double.tryParse(text.replaceAll(',', '.'));
-
-    if (value == null || value.isNaN || value.isInfinite) {
-      return 'اكتب مبلغ صحيح';
-    }
-
-    if (value <= 0) {
-      return 'المبلغ يجب أن يكون أكبر من صفر';
-    }
-
-    if (value > _currentRemaining) {
-      return 'المبلغ أكبر من المتبقي';
-    }
+    if (value == null) return 'اكتب مبلغ صحيح';
+    if (value <= 0) return 'المبلغ يجب أن يكون أكبر من صفر';
+    if (value > _currentRemaining) return 'المبلغ أكبر من المتبقي';
 
     return null;
   }
 
   Future<void> _submitPayment() async {
+    if (_saving || _currentRemaining <= 0) return;
+
     _paymentFocusNode.unfocus();
 
     final error = _validatePaymentText();
-
     if (error != null) {
       setState(() => _errorText = error);
       return;
     }
 
-    final payment = _enteredPayment;
-
-    if (payment <= 0 || _currentRemaining <= 0 || _saving) return;
+    final payment = _parsePayment(_paymentController.text) ?? 0.0;
+    if (payment <= 0) return;
 
     final nextPaidAmount = (_currentPaid + payment).clamp(0.0, _total);
 
+    await _savePayment(nextPaidAmount);
+  }
+
+  Future<void> _completePayment() async {
+    if (_saving || _currentRemaining <= 0) return;
+
+    _paymentFocusNode.unfocus();
+
+    await _savePayment(_total);
+  }
+
+  Future<void> _savePayment(double nextPaidAmount) async {
     setState(() => _saving = true);
 
     final saved = await context.read<InvoiceProvider>().updateInvoicePaidAmount(
@@ -309,34 +276,37 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
       _saving = false;
 
       if (saved) {
-        _paymentController.clear();
+        _typedPayment = 0.0;
         _errorText = null;
+        _paymentController.clear();
       }
     });
+
+    if (!saved && mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('تعذر حفظ الدفعة، حاول مرة أخرى')),
+        );
+    }
   }
 
-  Future<void> _completePayment() async {
-    _paymentFocusNode.unfocus();
+  Color _statusColor(ColorScheme colorScheme) {
+    if (_isComplete) return Colors.green;
+    if (_isPartial) return Colors.blue;
+    return colorScheme.error;
+  }
 
-    if (_saving || _currentRemaining <= 0) return;
+  String get _statusText {
+    if (_isComplete) return 'مدفوعة بالكامل';
+    if (_isPartial) return 'مدفوعة جزئياً';
+    return 'غير مدفوعة';
+  }
 
-    setState(() => _saving = true);
-
-    final saved = await context.read<InvoiceProvider>().updateInvoicePaidAmount(
-      invoice: widget.invoice,
-      paidAmount: _total,
-    );
-
-    if (!mounted) return;
-
-    setState(() {
-      _saving = false;
-
-      if (saved) {
-        _paymentController.clear();
-        _errorText = null;
-      }
-    });
+  IconData get _statusIcon {
+    if (_isComplete) return Icons.check_circle_rounded;
+    if (_isPartial) return Icons.timelapse_rounded;
+    return Icons.error_outline_rounded;
   }
 
   double _paymentProgress() {
@@ -346,6 +316,51 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
 
   int _paymentPercent() {
     return (_paymentProgress() * 100).round();
+  }
+}
+
+class _StatusHeader extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final int percent;
+  final Color color;
+
+  const _StatusHeader({
+    required this.icon,
+    required this.text,
+    required this.percent,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 21),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        Text(
+          '$percent%',
+          textDirection: TextDirection.ltr,
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -384,15 +399,17 @@ class _SummaryMiniBox extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              value,
-              textDirection: TextDirection.ltr,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w900,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                textDirection: TextDirection.ltr,
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
           ],

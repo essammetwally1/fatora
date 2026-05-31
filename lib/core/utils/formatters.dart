@@ -1,5 +1,3 @@
-// formatters.dart
-
 import 'package:intl/intl.dart';
 
 class Formatters {
@@ -8,10 +6,7 @@ class Formatters {
   }
 
   static String formatMoney(num value) {
-    return NumberFormat.currency(
-      locale: 'ar',
-      symbol: 'ج.م',
-      decimalDigits: 2,
-    ).format(value);
+    final formatter = NumberFormat('#,##0.00', 'en_US');
+    return '${formatter.format(value)} م.ج';
   }
 }

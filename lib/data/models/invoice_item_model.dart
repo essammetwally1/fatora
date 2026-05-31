@@ -7,7 +7,6 @@ class InvoiceItemModel extends HiveObject {
   @HiveField(0)
   DateTime date;
 
-  // Deprecated: keep this field to avoid breaking old Hive data.
   @HiveField(1)
   String? deprecatedCustomerName;
 
@@ -20,6 +19,7 @@ class InvoiceItemModel extends HiveObject {
   @HiveField(4)
   String? note;
 
+  // Legacy payment fields. Keep them to support old Hive data.
   @HiveField(5)
   bool isPaid;
 
@@ -32,26 +32,15 @@ class InvoiceItemModel extends HiveObject {
     required String itemName,
     required double price,
     this.note,
-    required bool isPaid,
+    bool isPaid = false,
     double? paidAmount,
   }) : date = date ?? DateTime.now(),
        itemName = itemName.trim(),
        price = _safePositive(price),
        isPaid = isPaid,
        paidAmount = paidAmount ?? (isPaid ? _safePositive(price) : 0.0) {
-    normalizePaymentState();
+    normalizeLegacyPaymentState();
   }
-
-  double get paidValue => _clampPayment(paidAmount, price);
-
-  double get remainingValue {
-    final value = price - paidValue;
-    return value <= 0 ? 0.0 : value;
-  }
-
-  bool get hasPartialPayment => !isPaid && paidValue > 0 && paidValue < price;
-
-  bool get isFullyUnpaid => !isPaid && paidValue <= 0;
 
   String get displayItemName {
     final value = itemName.trim();
@@ -63,11 +52,24 @@ class InvoiceItemModel extends HiveObject {
     return value == null || value.isEmpty ? 'لا توجد ملاحظات' : value;
   }
 
-  void normalizePaymentState() {
+  double get legacyPaidValue => _clampPayment(paidAmount, price);
+
+  bool get hasLegacyPayment => legacyPaidValue > 0;
+
+  void normalizeBasicData() {
     itemName = itemName.trim();
     price = _safePositive(price);
+  }
+
+  void normalizeLegacyPaymentState() {
+    normalizeBasicData();
     paidAmount = _clampPayment(paidAmount, price);
     isPaid = price > 0 && paidAmount >= price;
+  }
+
+  void clearLegacyPaymentState() {
+    paidAmount = 0.0;
+    isPaid = false;
   }
 
   static double _safePositive(double value) {
@@ -76,8 +78,7 @@ class InvoiceItemModel extends HiveObject {
   }
 
   static double _clampPayment(double value, double price) {
-    if (value.isNaN || value.isInfinite) return 0.0;
-    if (value < 0) return 0.0;
+    if (value.isNaN || value.isInfinite || value < 0) return 0.0;
     if (value > price) return price;
     return value;
   }

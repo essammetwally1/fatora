@@ -25,11 +25,12 @@ class InvoiceDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<InvoiceProvider>();
-
     final currentInvoice = provider.invoiceByKey(invoice.key) ?? invoice;
 
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final sortedItems = _sortedItemsWithOriginalIndexes(currentInvoice.items);
+    final canEditItems = currentInvoice.canEditItems;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -39,11 +40,11 @@ class InvoiceDetailsScreen extends StatelessWidget {
             currentInvoice.displayTitle,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w700,
-              color: currentInvoice.unpaidTotal == 0
+              color: currentInvoice.isPaymentCompleted
                   ? Colors.green
-                  : Theme.of(context).colorScheme.onSurface,
+                  : colorScheme.onSurface,
             ),
           ),
           actions: [
@@ -52,13 +53,12 @@ class InvoiceDetailsScreen extends StatelessWidget {
               child: PdfActionButton(
                 size: 36,
                 iconSize: 19,
-
                 onPressed: () => onExport(currentInvoice),
               ),
             ),
           ],
         ),
-        floatingActionButton: currentInvoice.canEditItems
+        floatingActionButton: canEditItems
             ? LiquidFloatingActionButton(
                 onPressed: () {
                   showInvoiceItemSheet(context, invoice: currentInvoice);
@@ -75,6 +75,7 @@ class InvoiceDetailsScreen extends StatelessWidget {
                 invoice: currentInvoice,
                 items: sortedItems,
                 emptyColor: colorScheme.primary,
+                canEditItems: canEditItems,
               ),
             ),
           ],
@@ -86,27 +87,21 @@ class InvoiceDetailsScreen extends StatelessWidget {
   static List<_IndexedInvoiceItem> _sortedItemsWithOriginalIndexes(
     List<InvoiceItemModel> items,
   ) {
-    final indexedItems = [
+    if (items.isEmpty) return const [];
+
+    final indexedItems = <_IndexedInvoiceItem>[
       for (var index = 0; index < items.length; index++)
         _IndexedInvoiceItem(item: items[index], originalIndex: index),
     ];
 
     indexedItems.sort((a, b) {
-      final statusComparison = _paymentSortRank(
-        a.item,
-      ).compareTo(_paymentSortRank(b.item));
+      final dateCompare = b.item.date.compareTo(a.item.date);
+      if (dateCompare != 0) return dateCompare;
 
-      if (statusComparison != 0) return statusComparison;
-
-      return b.item.date.compareTo(a.item.date);
+      return b.originalIndex.compareTo(a.originalIndex);
     });
 
     return indexedItems;
-  }
-
-  static int _paymentSortRank(InvoiceItemModel item) {
-    if (!item.isPaid && item.remainingValue > 0) return 0;
-    return 1;
   }
 }
 
@@ -114,11 +109,13 @@ class _ItemsList extends StatelessWidget {
   final InvoiceModel invoice;
   final List<_IndexedInvoiceItem> items;
   final Color emptyColor;
+  final bool canEditItems;
 
   const _ItemsList({
     required this.invoice,
     required this.items,
     required this.emptyColor,
+    required this.canEditItems,
   });
 
   @override
@@ -129,7 +126,7 @@ class _ItemsList extends StatelessWidget {
 
     return ListView.separated(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, canEditItems ? 96 : 24),
       itemCount: items.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
@@ -141,8 +138,12 @@ class _ItemsList extends StatelessWidget {
           key: ValueKey(
             '${invoice.key}-${item.date.microsecondsSinceEpoch}-$originalIndex',
           ),
-          direction: DismissDirection.horizontal,
+          direction: canEditItems
+              ? DismissDirection.horizontal
+              : DismissDirection.none,
           confirmDismiss: (_) {
+            if (!canEditItems) return Future<bool>.value(false);
+
             return _confirmAndDeleteItem(
               context: context,
               invoice: invoice,
@@ -153,9 +154,9 @@ class _ItemsList extends StatelessWidget {
           secondaryBackground: const DeleteBackground(),
           child: InvoiceItemTile(
             item: item,
-            canEdit: invoice.unpaidTotal > 0,
+            canEdit: canEditItems,
             onEdit: () {
-              if (invoice.unpaidTotal <= 0) return;
+              if (!canEditItems) return;
 
               showInvoiceItemSheet(
                 context,
@@ -173,6 +174,8 @@ class _ItemsList extends StatelessWidget {
     return showDialog<bool>(
       context: context,
       builder: (dialogContext) {
+        final colorScheme = Theme.of(dialogContext).colorScheme;
+
         return Directionality(
           textDirection: TextDirection.rtl,
           child: AlertDialog(
@@ -185,7 +188,8 @@ class _ItemsList extends StatelessWidget {
               ),
               FilledButton(
                 style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
+                  backgroundColor: colorScheme.error,
+                  foregroundColor: colorScheme.onError,
                 ),
                 onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('حذف'),
@@ -202,6 +206,8 @@ class _ItemsList extends StatelessWidget {
     required InvoiceModel invoice,
     required int index,
   }) async {
+    if (!invoice.canEditItems) return false;
+
     final confirmed = await _confirmDeleteItem(context);
 
     if (confirmed != true || !context.mounted) return false;

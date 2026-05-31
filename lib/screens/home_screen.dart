@@ -38,6 +38,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const Duration _searchDelay = Duration(milliseconds: 180);
+
   final TextEditingController _searchController = TextEditingController();
 
   Timer? _searchDebounce;
@@ -55,6 +57,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<InvoiceProvider>().loadInvoices();
+    });
   }
 
   @override
@@ -71,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onSearchChanged() {
     _searchDebounce?.cancel();
 
-    _searchDebounce = Timer(const Duration(milliseconds: 180), () {
+    _searchDebounce = Timer(_searchDelay, () {
       if (!mounted) return;
 
       final nextQuery = SearchUtils.normalize(_searchController.text);
@@ -107,10 +114,20 @@ class _HomeScreenState extends State<HomeScreen> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: const HomeAppBar(),
-        floatingActionButton: LiquidFloatingActionButton(
-          onPressed: () => _openInvoiceNameDialog(context),
-          label: 'فاتورة جديدة',
-          icon: Icons.add_rounded,
+        floatingActionButton: Selector<InvoiceProvider, bool>(
+          selector: (_, provider) => provider.isMutating,
+          builder: (context, isMutating, _) {
+            return LiquidFloatingActionButton(
+              onPressed: () {
+                if (isMutating) return;
+                _openInvoiceNameDialog(context);
+              },
+              label: isMutating ? 'جاري الحفظ...' : 'فاتورة جديدة',
+              icon: isMutating
+                  ? Icons.hourglass_top_rounded
+                  : Icons.add_rounded,
+            );
+          },
         ),
         body: HomeBody(
           invoices: invoices,
@@ -118,13 +135,27 @@ class _HomeScreenState extends State<HomeScreen> {
           totals: totals,
           searchController: _searchController,
           searchQuery: _searchQuery,
-          onClearSearch: _searchController.clear,
+          onClearSearch: _clearSearch,
           onEditInvoice: (invoice) {
             _openInvoiceNameDialog(context, invoice: invoice);
           },
         ),
       ),
     );
+  }
+
+  void _clearSearch() {
+    if (_searchController.text.isEmpty && _searchQuery.isEmpty) return;
+
+    _searchDebounce?.cancel();
+
+    _searchController.clear();
+
+    if (_searchQuery.isNotEmpty) {
+      setState(() {
+        _searchQuery = '';
+      });
+    }
   }
 
   List<InvoiceModel> _getFilteredInvoices({
@@ -170,6 +201,10 @@ class _HomeScreenState extends State<HomeScreen> {
     BuildContext context, {
     InvoiceModel? invoice,
   }) async {
+    final provider = context.read<InvoiceProvider>();
+
+    if (provider.isMutating) return;
+
     final title = await showDialog<String>(
       context: context,
       builder: (_) => InvoiceNameDialog(initialTitle: invoice?.title),
@@ -177,12 +212,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (title == null || !context.mounted) return;
 
-    final provider = context.read<InvoiceProvider>();
+    final success = invoice == null
+        ? await provider.createInvoice(title)
+        : await provider.updateInvoiceTitle(invoice: invoice, title: title);
 
-    if (invoice == null) {
-      await provider.createInvoice(title);
-    } else {
-      await provider.updateInvoiceTitle(invoice: invoice, title: title);
-    }
+    if (!context.mounted || success) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('تعذر حفظ الفاتورة، حاول مرة أخرى')),
+      );
   }
 }

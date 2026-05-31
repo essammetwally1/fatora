@@ -32,13 +32,37 @@ class InvoiceProvider extends ChangeNotifier {
     if (_isLoading) return;
 
     _isLoading = true;
+    if (notify) notifyListeners();
 
     final invoices = _repository.getInvoices();
 
-    _setInvoices(invoices);
-    _isLoading = false;
+    _invoices = List<InvoiceModel>.unmodifiable(invoices);
 
-    if (notify) {
+    _invoiceByKey
+      ..clear()
+      ..addEntries(
+        _invoices
+            .where((invoice) => invoice.key != null)
+            .map((invoice) => MapEntry(invoice.key, invoice)),
+      );
+
+    _bumpVersion();
+
+    _isLoading = false;
+    if (notify) notifyListeners();
+  }
+
+  Future<void> migrateLegacyPayments() async {
+    if (_isMutating) return;
+
+    _isMutating = true;
+    notifyListeners();
+
+    try {
+      await _repository.migrateLegacyPaymentsToInvoicePayments();
+      loadInvoices(notify: false);
+    } finally {
+      _isMutating = false;
       notifyListeners();
     }
   }
@@ -169,7 +193,7 @@ class InvoiceProvider extends ChangeNotifier {
     required InvoiceModel invoice,
     required InvoiceItemModel item,
   }) async {
-    if (_isMutating) return false;
+    if (_isMutating || !invoice.canEditItems) return false;
 
     final invoiceKey = invoice.key;
     if (invoiceKey == null) return false;
@@ -197,7 +221,7 @@ class InvoiceProvider extends ChangeNotifier {
     required int index,
     required InvoiceItemModel item,
   }) async {
-    if (_isMutating) return false;
+    if (_isMutating || !invoice.canEditItems) return false;
 
     final invoiceKey = invoice.key;
     if (invoiceKey == null) return false;
@@ -225,7 +249,7 @@ class InvoiceProvider extends ChangeNotifier {
     required InvoiceModel invoice,
     required int index,
   }) async {
-    if (_isMutating) return false;
+    if (_isMutating || !invoice.canEditItems) return false;
 
     final invoiceKey = invoice.key;
     if (invoiceKey == null) return false;

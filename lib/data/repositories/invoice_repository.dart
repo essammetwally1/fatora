@@ -9,6 +9,11 @@ class InvoiceRepository {
 
   List<InvoiceModel> getInvoices() {
     final invoices = _box.values.toList(growable: false);
+
+    for (final invoice in invoices) {
+      invoice.normalizeBasicData();
+    }
+
     invoices.sort(_compareInvoicesNewestFirst);
     return invoices;
   }
@@ -37,8 +42,9 @@ class InvoiceRepository {
     if (cleanTitle.isEmpty) return null;
 
     invoice.title = cleanTitle;
-    await invoice.save();
+    invoice.normalizeBasicData();
 
+    await invoice.save();
     return invoice;
   }
 
@@ -51,13 +57,17 @@ class InvoiceRepository {
     final invoice = _box.get(invoiceKey);
     if (invoice == null) return null;
 
+    invoice.normalizeBasicData();
     invoice.paidAmount = _clampPaidAmount(
       paidAmount: paidAmount,
       total: invoice.total,
     );
 
-    await invoice.save();
+    // Important: after user edits invoice-level payment,
+    // old item-level payment must not override the new invoice payment.
+    invoice.clearLegacyItemPayments();
 
+    await invoice.save();
     return invoice;
   }
 
@@ -74,13 +84,9 @@ class InvoiceRepository {
 
     if (invoice.isInBox) {
       final attachedKey = invoice.key;
-
       await invoice.delete();
 
-      if (attachedKey == null) {
-        return !invoice.isInBox;
-      }
-
+      if (attachedKey == null) return !invoice.isInBox;
       return !_box.containsKey(attachedKey);
     }
 
@@ -95,6 +101,10 @@ class InvoiceRepository {
 
     final invoice = _box.get(invoiceKey);
     if (invoice == null) return null;
+    if (invoice.isPaymentCompleted) return null;
+
+    item.normalizeBasicData();
+    item.clearLegacyPaymentState();
 
     final nextItems = List<InvoiceItemModel>.of(invoice.items, growable: true)
       ..add(item);
@@ -105,8 +115,9 @@ class InvoiceRepository {
       total: _calculateTotal(nextItems),
     );
 
-    await invoice.save();
+    invoice.normalizeBasicData();
 
+    await invoice.save();
     return invoice;
   }
 
@@ -119,7 +130,11 @@ class InvoiceRepository {
 
     final invoice = _box.get(invoiceKey);
     if (invoice == null) return null;
+    if (invoice.isPaymentCompleted) return null;
     if (!_isValidItemIndex(invoice, index)) return null;
+
+    item.normalizeBasicData();
+    item.clearLegacyPaymentState();
 
     final nextItems = List<InvoiceItemModel>.of(invoice.items, growable: true);
     nextItems[index] = item;
@@ -130,8 +145,9 @@ class InvoiceRepository {
       total: _calculateTotal(nextItems),
     );
 
-    await invoice.save();
+    invoice.normalizeBasicData();
 
+    await invoice.save();
     return invoice;
   }
 
@@ -143,6 +159,7 @@ class InvoiceRepository {
 
     final invoice = _box.get(invoiceKey);
     if (invoice == null) return null;
+    if (invoice.isPaymentCompleted) return null;
     if (!_isValidItemIndex(invoice, index)) return null;
 
     final nextItems = List<InvoiceItemModel>.of(invoice.items, growable: true)
@@ -154,9 +171,23 @@ class InvoiceRepository {
       total: _calculateTotal(nextItems),
     );
 
-    await invoice.save();
+    invoice.normalizeBasicData();
 
+    await invoice.save();
     return invoice;
+  }
+
+  Future<void> migrateLegacyPaymentsToInvoicePayments() async {
+    for (final invoice in _box.values) {
+      final oldPaidAmount = invoice.paidAmount;
+
+      invoice.normalizeBasicData();
+      invoice.migrateLegacyPaymentToInvoicePaymentIfNeeded();
+
+      if (invoice.paidAmount != oldPaidAmount) {
+        await invoice.save();
+      }
+    }
   }
 
   Future<void> compactInvoicesBox() {
