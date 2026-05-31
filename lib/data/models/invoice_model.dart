@@ -11,55 +11,45 @@ class InvoiceModel extends HiveObject {
 
   @HiveField(1)
   List<InvoiceItemModel> items;
+  @HiveField(2, defaultValue: 0.0)
+  double paidAmount;
 
-  InvoiceModel({required String title, required List<InvoiceItemModel> items})
-    : title = title.trim(),
-      items = List<InvoiceItemModel>.of(items, growable: true);
-
+  InvoiceModel({
+    required String title,
+    required List<InvoiceItemModel> items,
+    double paidAmount = 0.0,
+  }) : title = title.trim(),
+       items = List<InvoiceItemModel>.of(items, growable: true),
+       paidAmount = paidAmount < 0 || paidAmount.isNaN || paidAmount.isInfinite
+           ? 0.0
+           : paidAmount;
   int get itemCount => items.length;
 
   double get total {
     var value = 0.0;
-
     for (final item in items) {
       value += item.price;
     }
-
     return value;
   }
 
   double get paidTotal {
-    var value = 0.0;
-
-    for (final item in items) {
-      value += item.paidValue;
-    }
-
-    return value;
+    if (paidAmount.isNaN || paidAmount.isInfinite || paidAmount < 0) return 0.0;
+    if (paidAmount > total) return total;
+    return paidAmount;
   }
 
   double get unpaidTotal {
-    var value = 0.0;
-
-    for (final item in items) {
-      value += item.remainingValue;
-    }
-
-    return value;
+    final value = total - paidTotal;
+    return value <= 0 ? 0.0 : value;
   }
 
-  bool get hasUnpaidItems {
-    for (final item in items) {
-      if (!item.isPaid && item.remainingValue > 0) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
+  bool get hasUnpaidItems => unpaidTotal > 0;
   String get displayTitle {
     final value = title.trim();
     return value.isEmpty ? 'فاتورة بدون عنوان' : value;
   }
+
+  bool get isPaymentCompleted => itemCount > 0 && total > 0 && unpaidTotal <= 0;
+  bool get canEditItems => !isPaymentCompleted;
 }

@@ -1,4 +1,3 @@
-import 'package:fatora/app/app_theme.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/formatters.dart';
@@ -7,14 +6,19 @@ import '../../../data/models/invoice_item_model.dart';
 class InvoiceItemTile extends StatelessWidget {
   final InvoiceItemModel item;
   final VoidCallback onEdit;
+  final bool canEdit;
 
-  const InvoiceItemTile({super.key, required this.item, required this.onEdit});
+  const InvoiceItemTile({
+    super.key,
+    required this.item,
+    required this.onEdit,
+    required this.canEdit,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final status = _PaymentStatus.fromItem(item);
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -40,90 +44,54 @@ class InvoiceItemTile extends StatelessWidget {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: status.color.withValues(alpha: .14),
+                    color: colorScheme.primary.withValues(alpha: .12),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(status.icon, color: status.color, size: 22),
+                  child: Icon(
+                    Icons.inventory_2_outlined,
+                    color: colorScheme.primary,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (item.displayCustomerName != 'عميل غير معروف') ...[
-                        Text(
-                          item.displayCustomerName,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: colorScheme.onSurface,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                      ],
-
                       Text(
                         item.displayItemName,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.right,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-
-                      const SizedBox(height: 4),
-
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              Formatters.formatMoney(item.price),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.primary,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-
-                          if (item.hasPartialPayment) ...[
-                            const SizedBox(width: 6),
-                            Icon(
-                              Icons.circle,
-                              size: 4,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                'المتبقي ${Formatters.formatMoney(item.remainingValue)}',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
+                      const SizedBox(height: 5),
+                      Text(
+                        Formatters.formatMoney(item.price),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 8),
-                _StatusChip(status: status),
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.chevron_left_rounded,
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                canEdit
+                    ? IconButton(
+                        tooltip: 'تعديل',
+                        onPressed: onEdit,
+                        icon: Icon(
+                          Icons.edit_outlined,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
               ],
             ),
           ),
@@ -133,123 +101,139 @@ class InvoiceItemTile extends StatelessWidget {
   }
 
   Future<void> _showItemDetailsDialog(BuildContext context) {
-    final status = _PaymentStatus.fromItem(item);
-
     return showDialog<void>(
       context: context,
       builder: (dialogContext) {
         final theme = Theme.of(dialogContext);
         final colorScheme = theme.colorScheme;
+        final size = MediaQuery.sizeOf(dialogContext);
+        final isSmall = size.width < 380;
 
         return Directionality(
           textDirection: TextDirection.rtl,
-          child: AlertDialog(
-            backgroundColor: colorScheme.surface,
-            surfaceTintColor: Colors.transparent,
-            titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-            contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            title: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    item.displayCustomerName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: colorScheme.onSurface,
-                      fontWeight: FontWeight.w800,
-                    ),
+          child: Dialog(
+            insetPadding: EdgeInsets.symmetric(
+              horizontal: isSmall ? 14 : 22,
+              vertical: 24,
+            ),
+            backgroundColor: Colors.transparent,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 460,
+                maxHeight: size.height * .82,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: .55),
                   ),
                 ),
-                const SizedBox(width: 8),
-                _StatusChip(status: status),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _DialogValueRow(
-                    label: 'اسم العميل',
-                    value: item.displayCustomerName,
-                    icon: Icons.person_outline,
-                  ),
-                  _DialogValueRow(
-                    label: 'الصنف',
-                    value: item.displayItemName,
-                    icon: Icons.inventory_2_outlined,
-                  ),
-                  _DialogValueRow(
-                    label: 'السعر',
-                    value: Formatters.formatMoney(item.price),
-                    icon: Icons.payments_outlined,
-                  ),
-                  _DialogValueRow(
-                    label: 'المدفوع',
-                    value: Formatters.formatMoney(item.paidValue),
-                    icon: Icons.price_check_outlined,
-                  ),
-                  _DialogValueRow(
-                    label: 'المتبقي',
-                    value: Formatters.formatMoney(item.remainingValue),
-                    icon: Icons.account_balance_wallet_outlined,
-                  ),
-                  _DialogValueRow(
-                    label: 'التاريخ',
-                    value: Formatters.formatDate(item.date),
-                    icon: Icons.calendar_today_outlined,
-                  ),
-                  _DialogValueRow(
-                    label: 'ملاحظات',
-                    value: item.displayNote,
-                    icon: Icons.edit_note_outlined,
-                  ),
-                ],
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary.withValues(alpha: .10),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              Icons.inventory_2_outlined,
+                              color: colorScheme.primary,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              item.displayItemName,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: colorScheme.onSurface,
+                                fontWeight: FontWeight.w900,
+                                height: 1.2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _DialogValueRow(
+                              label: 'الصنف',
+                              value: item.displayItemName,
+                              icon: Icons.inventory_2_outlined,
+                            ),
+                            _DialogValueRow(
+                              label: 'السعر',
+                              value: Formatters.formatMoney(item.price),
+                              icon: Icons.payments_outlined,
+                              valueDirection: TextDirection.ltr,
+                            ),
+                            _DialogValueRow(
+                              label: 'التاريخ',
+                              value: Formatters.formatDate(item.date),
+                              icon: Icons.calendar_today_outlined,
+                            ),
+                            _DialogValueRow(
+                              label: 'ملاحظات',
+                              value: item.displayNote,
+                              icon: Icons.edit_note_outlined,
+                              multiLine: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              child: const Text('إغلاق'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          canEdit
+                              ? Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: () {
+                                      Navigator.pop(dialogContext);
+                                      onEdit();
+                                    },
+                                    icon: const Icon(
+                                      Icons.edit_outlined,
+                                      size: 18,
+                                    ),
+                                    label: const Text('تعديل'),
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('إغلاق'),
-              ),
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                  onEdit();
-                },
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('تعديل'),
-              ),
-            ],
           ),
         );
       },
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  final _PaymentStatus status;
-
-  const _StatusChip({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: status.color.withValues(alpha: .14),
-        borderRadius: BorderRadius.circular(99),
-        border: Border.all(color: status.color.withValues(alpha: .22)),
-      ),
-      child: Text(
-        status.text,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: status.color,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
     );
   }
 }
@@ -258,45 +242,47 @@ class _DialogValueRow extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
+  final bool multiLine;
+  final TextDirection? valueDirection;
 
   const _DialogValueRow({
     required this.label,
     required this.value,
     required this.icon,
+    this.multiLine = false,
+    this.valueDirection,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 9),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        width: double.infinity,
+        padding: const EdgeInsets.all(11),
         decoration: BoxDecoration(
-          color: isDark
-              ? colorScheme.surfaceContainerHighest.withValues(alpha: .55)
-              : colorScheme.surfaceContainerHighest.withValues(alpha: .70),
-          borderRadius: BorderRadius.circular(14),
+          color: colorScheme.surfaceContainerHighest.withValues(alpha: .52),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: colorScheme.outlineVariant.withValues(
-              alpha: isDark ? .35 : .65,
-            ),
+            color: colorScheme.outlineVariant.withValues(alpha: .48),
           ),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: multiLine
+              ? CrossAxisAlignment.start
+              : CrossAxisAlignment.center,
           children: [
             Container(
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: .12),
+                color: colorScheme.primary.withValues(alpha: .10),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, size: 19, color: colorScheme.primary),
+              child: Icon(icon, color: colorScheme.primary, size: 18),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -305,18 +291,23 @@ class _DialogValueRow extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: theme.textTheme.labelMedium?.copyWith(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 4),
                   Text(
                     value,
-                    textAlign: TextAlign.right,
+                    textDirection: valueDirection,
+                    maxLines: multiLine ? 5 : 2,
+                    overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurface,
                       fontWeight: FontWeight.w800,
+                      height: 1.25,
                     ),
                   ),
                 ],
@@ -325,42 +316,6 @@ class _DialogValueRow extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _PaymentStatus {
-  final String text;
-  final Color color;
-  final IconData icon;
-
-  const _PaymentStatus({
-    required this.text,
-    required this.color,
-    required this.icon,
-  });
-
-  factory _PaymentStatus.fromItem(InvoiceItemModel item) {
-    if (item.isPaid) {
-      return const _PaymentStatus(
-        text: 'مدفوع',
-        color: AppTheme.green,
-        icon: Icons.check_circle_outline,
-      );
-    }
-
-    if (item.hasPartialPayment) {
-      return const _PaymentStatus(
-        text: 'باقي',
-        color: AppTheme.blue,
-        icon: Icons.timelapse_outlined,
-      );
-    }
-
-    return const _PaymentStatus(
-      text: 'غير مدفوع',
-      color: AppTheme.red,
-      icon: Icons.pending_outlined,
     );
   }
 }

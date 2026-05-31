@@ -18,7 +18,7 @@ class InvoiceItemModelAdapter extends TypeAdapter<InvoiceItemModel> {
     };
     return InvoiceItemModel(
       date: fields[0] as DateTime?,
-      customerName: fields[1] as String?,
+      deprecatedCustomerName: fields[1] as String?,
       itemName: fields[2] as String,
       price: fields[3] as double,
       note: fields[4] as String?,
@@ -34,7 +34,7 @@ class InvoiceItemModelAdapter extends TypeAdapter<InvoiceItemModel> {
       ..writeByte(0)
       ..write(obj.date)
       ..writeByte(1)
-      ..write(obj.customerName)
+      ..write(obj.deprecatedCustomerName)
       ..writeByte(2)
       ..write(obj.itemName)
       ..writeByte(3)

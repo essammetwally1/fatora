@@ -17,6 +17,7 @@ class InvoiceRepository {
     final invoice = InvoiceModel(
       title: title.trim(),
       items: <InvoiceItemModel>[],
+      paidAmount: 0.0,
     );
 
     await _box.add(invoice);
@@ -41,20 +42,36 @@ class InvoiceRepository {
     return invoice;
   }
 
+  Future<InvoiceModel?> updateInvoicePaidAmount({
+    required dynamic invoiceKey,
+    required double paidAmount,
+  }) async {
+    if (invoiceKey == null) return null;
+
+    final invoice = _box.get(invoiceKey);
+    if (invoice == null) return null;
+
+    invoice.paidAmount = _clampPaidAmount(
+      paidAmount: paidAmount,
+      total: invoice.total,
+    );
+
+    await invoice.save();
+
+    return invoice;
+  }
+
   Future<bool> deleteInvoice({
     required InvoiceModel invoice,
     dynamic invoiceKey,
   }) async {
     final key = invoiceKey ?? invoice.key;
 
-    // Main path: delete by Hive key.
     if (key != null && _box.containsKey(key)) {
       await _box.delete(key);
       return !_box.containsKey(key);
     }
 
-    // Fallback path: if this object is still attached to Hive,
-    // delete it directly through HiveObject.
     if (invoice.isInBox) {
       final attachedKey = invoice.key;
 
@@ -83,6 +100,11 @@ class InvoiceRepository {
       ..add(item);
 
     invoice.items = nextItems;
+    invoice.paidAmount = _clampPaidAmount(
+      paidAmount: invoice.paidAmount,
+      total: _calculateTotal(nextItems),
+    );
+
     await invoice.save();
 
     return invoice;
@@ -100,10 +122,14 @@ class InvoiceRepository {
     if (!_isValidItemIndex(invoice, index)) return null;
 
     final nextItems = List<InvoiceItemModel>.of(invoice.items, growable: true);
-
     nextItems[index] = item;
 
     invoice.items = nextItems;
+    invoice.paidAmount = _clampPaidAmount(
+      paidAmount: invoice.paidAmount,
+      total: _calculateTotal(nextItems),
+    );
+
     await invoice.save();
 
     return invoice;
@@ -123,6 +149,11 @@ class InvoiceRepository {
       ..removeAt(index);
 
     invoice.items = nextItems;
+    invoice.paidAmount = _clampPaidAmount(
+      paidAmount: invoice.paidAmount,
+      total: _calculateTotal(nextItems),
+    );
+
     await invoice.save();
 
     return invoice;
@@ -145,5 +176,30 @@ class InvoiceRepository {
 
   static bool _isValidItemIndex(InvoiceModel invoice, int index) {
     return index >= 0 && index < invoice.items.length;
+  }
+
+  static double _calculateTotal(List<InvoiceItemModel> items) {
+    var total = 0.0;
+
+    for (final item in items) {
+      total += item.price;
+    }
+
+    return total;
+  }
+
+  static double _clampPaidAmount({
+    required double paidAmount,
+    required double total,
+  }) {
+    if (paidAmount.isNaN || paidAmount.isInfinite || paidAmount < 0) {
+      return 0.0;
+    }
+
+    if (paidAmount > total) {
+      return total;
+    }
+
+    return paidAmount;
   }
 }

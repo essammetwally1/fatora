@@ -12,6 +12,7 @@ class AppTextFormField extends StatelessWidget {
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
   final bool autofocus;
+  final bool enabled;
 
   const AppTextFormField({
     super.key,
@@ -25,12 +26,17 @@ class AppTextFormField extends StatelessWidget {
     this.validator,
     this.onChanged,
     this.autofocus = false,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return TextFormField(
       controller: controller,
+      enabled: enabled,
       keyboardType: keyboardType,
       textInputAction: textInputAction,
       inputFormatters: inputFormatters,
@@ -39,9 +45,14 @@ class AppTextFormField extends StatelessWidget {
       validator: validator,
       onChanged: onChanged,
       autofocus: autofocus,
+      style: theme.textTheme.bodyLarge?.copyWith(
+        color: enabled
+            ? colorScheme.onSurface
+            : colorScheme.onSurfaceVariant.withValues(alpha: .65),
+        fontWeight: FontWeight.w600,
+      ),
+      cursorColor: colorScheme.primary,
       decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
-      style: Theme.of(context).textTheme.bodyLarge,
-      cursorColor: Theme.of(context).colorScheme.primary,
     );
   }
 }

@@ -7,8 +7,9 @@ class InvoiceItemModel extends HiveObject {
   @HiveField(0)
   DateTime date;
 
+  // Deprecated: keep this field to avoid breaking old Hive data.
   @HiveField(1)
-  String? customerName;
+  String? deprecatedCustomerName;
 
   @HiveField(2)
   String itemName;
@@ -27,7 +28,7 @@ class InvoiceItemModel extends HiveObject {
 
   InvoiceItemModel({
     DateTime? date,
-    this.customerName,
+    this.deprecatedCustomerName,
     required String itemName,
     required double price,
     this.note,
@@ -35,25 +36,22 @@ class InvoiceItemModel extends HiveObject {
     double? paidAmount,
   }) : date = date ?? DateTime.now(),
        itemName = itemName.trim(),
-       price = price < 0 ? 0.0 : price,
+       price = _safePositive(price),
        isPaid = isPaid,
-       paidAmount = paidAmount ?? (isPaid ? price : 0.0) {
+       paidAmount = paidAmount ?? (isPaid ? _safePositive(price) : 0.0) {
     normalizePaymentState();
   }
 
-  double get paidValue => isPaid ? price : _clampPayment(paidAmount, price);
+  double get paidValue => _clampPayment(paidAmount, price);
 
   double get remainingValue {
     final value = price - paidValue;
     return value <= 0 ? 0.0 : value;
   }
 
-  bool get hasPartialPayment => !isPaid && paidValue > 0;
+  bool get hasPartialPayment => !isPaid && paidValue > 0 && paidValue < price;
 
-  String get displayCustomerName {
-    final value = customerName?.trim();
-    return value == null || value.isEmpty ? 'عميل غير معروف' : value;
-  }
+  bool get isFullyUnpaid => !isPaid && paidValue <= 0;
 
   String get displayItemName {
     final value = itemName.trim();
@@ -67,9 +65,14 @@ class InvoiceItemModel extends HiveObject {
 
   void normalizePaymentState() {
     itemName = itemName.trim();
-    price = price < 0 ? 0.0 : price;
-    paidAmount = _clampPayment(isPaid ? price : paidAmount, price);
+    price = _safePositive(price);
+    paidAmount = _clampPayment(paidAmount, price);
     isPaid = price > 0 && paidAmount >= price;
+  }
+
+  static double _safePositive(double value) {
+    if (value.isNaN || value.isInfinite || value < 0) return 0.0;
+    return value;
   }
 
   static double _clampPayment(double value, double price) {

@@ -19,17 +19,22 @@ class InvoiceModelAdapter extends TypeAdapter<InvoiceModel> {
     return InvoiceModel(
       title: fields[0] as String,
       items: (fields[1] as List).cast<InvoiceItemModel>(),
+      // for deprecated  version of hive
+      // paidAmount: (fields[2] as num?)?.toDouble() ?? 0.0,
+      paidAmount: fields[2] == null ? 0.0 : fields[2] as double,
     );
   }
 
   @override
   void write(BinaryWriter writer, InvoiceModel obj) {
     writer
-      ..writeByte(2)
+      ..writeByte(3)
       ..writeByte(0)
       ..write(obj.title)
       ..writeByte(1)
-      ..write(obj.items);
+      ..write(obj.items)
+      ..writeByte(2)
+      ..write(obj.paidAmount);
   }
 
   @override

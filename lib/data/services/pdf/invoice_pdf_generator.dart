@@ -20,6 +20,9 @@ class InvoicePdfGenerator {
   static final PdfColor _line = PdfColor.fromHex('#D8B56A');
   static final PdfColor _softRow = PdfColor.fromHex('#FBF6EA');
 
+  static final PdfColor _success = PdfColor.fromHex('#16A34A');
+  static final PdfColor _danger = PdfColor.fromHex('#DC2626');
+
   static const PdfColor _bgGold = PdfColor(0.72, 0.54, 0.21, 0.10);
   static const PdfColor _bgNavy = PdfColor(0.02, 0.12, 0.23, 0.06);
 
@@ -45,20 +48,12 @@ class InvoicePdfGenerator {
         maxPages: 300,
         pageTheme: pw.PageTheme(
           pageFormat: PdfPageFormat.a4,
-
-          // مهم:
-          // bottom أقل = الفوتر ينزل لتحت أكثر
-          // وخليها مناسبة عشان مفيش overlap مع المحتوى
           margin: const pw.EdgeInsets.fromLTRB(20, 18, 20, 72),
-
           theme: theme,
           textDirection: pw.TextDirection.rtl,
           buildBackground: (_) => _buildBackground(),
         ),
-
-        // الفوتر هيبقى في المكان الصحيح أسفل الصفحة
         footer: (context) => _buildRepeatedFooter(context, logo, assets),
-
         build: (_) => [
           _pageFrame(
             child: pw.Column(
@@ -68,13 +63,14 @@ class InvoicePdfGenerator {
                 pw.SizedBox(height: 8),
                 _buildInvoiceInfoBox(invoice),
                 pw.SizedBox(height: 9),
-                ..._buildItemsSection(invoice.items, invoice.total),
+                ..._buildItemsSection(invoice),
               ],
             ),
           ),
         ],
       ),
     );
+
     return document.save();
   }
 
@@ -304,25 +300,19 @@ class InvoicePdfGenerator {
         mainAxisAlignment: pw.MainAxisAlignment.center,
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
-          pw.Container(
-            width: double.infinity,
-            alignment: pw.Alignment.center,
-            child: pw.Text(
-              'معمل',
-              maxLines: 1,
-              textAlign: pw.TextAlign.center,
-              textDirection: pw.TextDirection.rtl,
-              style: pw.TextStyle(
-                color: _gold,
-                fontSize: 15.5,
-                fontWeight: pw.FontWeight.bold,
-              ),
+          pw.Text(
+            'معمل',
+            maxLines: 1,
+            textAlign: pw.TextAlign.center,
+            textDirection: pw.TextDirection.rtl,
+            style: pw.TextStyle(
+              color: _gold,
+              fontSize: 15.5,
+              fontWeight: pw.FontWeight.bold,
             ),
           ),
           pw.SizedBox(height: 2),
-          pw.Container(
-            width: double.infinity,
-            alignment: pw.Alignment.center,
+          pw.Padding(
             padding: const pw.EdgeInsets.symmetric(horizontal: 8),
             child: pw.Text(
               'مصطفى سعد',
@@ -334,31 +324,23 @@ class InvoicePdfGenerator {
                 color: _white,
                 fontSize: 32,
                 fontWeight: pw.FontWeight.bold,
-                letterSpacing: 0,
-                wordSpacing: 0,
               ),
             ),
           ),
           pw.SizedBox(height: 2),
-          pw.Container(
-            width: double.infinity,
-            alignment: pw.Alignment.center,
-            child: pw.Text(
-              'للبصريات',
-              maxLines: 1,
-              textAlign: pw.TextAlign.center,
-              textDirection: pw.TextDirection.rtl,
-              style: pw.TextStyle(
-                color: _gold,
-                fontSize: 15.5,
-                fontWeight: pw.FontWeight.bold,
-              ),
+          pw.Text(
+            'للبصريات',
+            maxLines: 1,
+            textAlign: pw.TextAlign.center,
+            textDirection: pw.TextDirection.rtl,
+            style: pw.TextStyle(
+              color: _gold,
+              fontSize: 15.5,
+              fontWeight: pw.FontWeight.bold,
             ),
           ),
           pw.SizedBox(height: 5),
-          pw.Container(
-            width: double.infinity,
-            alignment: pw.Alignment.center,
+          pw.Center(
             child: pw.Container(
               width: 132,
               height: 1.1,
@@ -435,7 +417,6 @@ class InvoicePdfGenerator {
         ),
       ),
       child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
           pw.Container(
             width: 78,
@@ -473,17 +454,15 @@ class InvoicePdfGenerator {
     );
   }
 
-  static List<pw.Widget> _buildItemsSection(
-    List<InvoiceItemModel> items,
-    double total,
-  ) {
+  static List<pw.Widget> _buildItemsSection(InvoiceModel invoice) {
     return [
       _tableHeader(),
-      if (items.isEmpty)
+      if (invoice.items.isEmpty)
         _emptyItemsRow()
       else
-        for (int i = 0; i < items.length; i++) _itemRow(items[i], i),
-      _totalRow(total),
+        for (int i = 0; i < invoice.items.length; i++)
+          _itemRow(invoice.items[i], i),
+      _totalAndPaymentSummary(invoice),
     ];
   }
 
@@ -607,9 +586,8 @@ class InvoicePdfGenerator {
     );
   }
 
-  static pw.Widget _totalRow(double total) {
+  static pw.Widget _totalAndPaymentSummary(InvoiceModel invoice) {
     return pw.Container(
-      height: 38,
       decoration: pw.BoxDecoration(
         color: _white,
         borderRadius: const pw.BorderRadius.vertical(
@@ -617,55 +595,94 @@ class InvoicePdfGenerator {
         ),
         border: pw.Border.all(color: _line, width: .75),
       ),
-      child: pw.Row(
+      child: pw.Column(
         children: [
-          pw.Expanded(
-            flex: 4,
-            child: pw.Container(
-              height: 38,
-              alignment: pw.Alignment.center,
-              decoration: pw.BoxDecoration(
-                color: _gold,
-                borderRadius: const pw.BorderRadius.only(
-                  bottomRight: pw.Radius.circular(8),
-                ),
-              ),
-              child: pw.Text(
-                'الإجمالي',
-                textAlign: pw.TextAlign.center,
-                style: pw.TextStyle(
-                  color: _navy,
-                  fontSize: 13,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-            ),
+          _invoiceMoneyRow(
+            label: 'الإجمالي',
+            value: Formatters.formatMoney(invoice.total),
+            height: 38,
+            isLast: false,
           ),
-          pw.Container(width: .8, height: 38, color: _line),
-          pw.Expanded(
-            flex: 3,
-            child: pw.Container(
-              height: 38,
-              alignment: pw.Alignment.center,
-              decoration: pw.BoxDecoration(
-                color: _navy,
-                borderRadius: const pw.BorderRadius.only(
-                  bottomLeft: pw.Radius.circular(8),
-                ),
-              ),
-              child: pw.Text(
-                Formatters.formatMoney(total),
-                textAlign: pw.TextAlign.center,
-                style: pw.TextStyle(
-                  color: _gold,
-                  fontSize: 12.5,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-            ),
+          pw.Container(height: .55, color: _line),
+          _invoiceMoneyRow(
+            label: 'المبلغ المدفوع',
+            value: Formatters.formatMoney(invoice.paidTotal),
+            height: 36,
+            isLast: false,
+          ),
+          pw.Container(height: .55, color: _line),
+          _invoiceMoneyRow(
+            label: 'المبلغ المتبقي',
+            value: Formatters.formatMoney(invoice.unpaidTotal),
+            height: 36,
+            isLast: true,
           ),
         ],
       ),
+    );
+  }
+
+  static pw.Widget _invoiceMoneyRow({
+    required String label,
+    required String value,
+    required double height,
+    required bool isLast,
+  }) {
+    return pw.Row(
+      children: [
+        pw.Expanded(
+          flex: 4,
+          child: pw.Container(
+            height: height,
+            alignment: pw.Alignment.center,
+            decoration: pw.BoxDecoration(
+              color: _gold,
+              borderRadius: isLast
+                  ? const pw.BorderRadius.only(
+                      bottomRight: pw.Radius.circular(8),
+                    )
+                  : null,
+            ),
+            child: pw.Text(
+              label,
+              maxLines: 1,
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(
+                color: _navy,
+                fontSize: 12,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+        pw.Container(width: .8, height: height, color: _line),
+        pw.Expanded(
+          flex: 3,
+          child: pw.Container(
+            height: height,
+            alignment: pw.Alignment.center,
+            decoration: pw.BoxDecoration(
+              color: _navy,
+              borderRadius: isLast
+                  ? const pw.BorderRadius.only(
+                      bottomLeft: pw.Radius.circular(8),
+                    )
+                  : null,
+            ),
+            child: pw.Text(
+              value,
+              maxLines: 1,
+              textAlign: pw.TextAlign.center,
+              textDirection: pw.TextDirection.ltr,
+              style: pw.TextStyle(
+                color: _gold,
+                fontSize: 12,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

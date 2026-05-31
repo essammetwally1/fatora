@@ -102,6 +102,40 @@ class InvoiceProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> updateInvoicePaidAmount({
+    required InvoiceModel invoice,
+    required double paidAmount,
+  }) async {
+    if (_isMutating) return false;
+
+    final invoiceKey = invoice.key;
+    if (invoiceKey == null) return false;
+
+    final cleanPaidAmount = _clampPaidAmount(
+      paidAmount: paidAmount,
+      total: invoice.total,
+    );
+
+    if (invoice.paidTotal == cleanPaidAmount) return true;
+
+    _isMutating = true;
+    notifyListeners();
+
+    try {
+      final updatedInvoice = await _repository.updateInvoicePaidAmount(
+        invoiceKey: invoiceKey,
+        paidAmount: cleanPaidAmount,
+      );
+
+      if (updatedInvoice == null) return false;
+
+      return _replaceInvoiceInMemory(updatedInvoice);
+    } finally {
+      _isMutating = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> deleteInvoice(InvoiceModel invoice) async {
     if (_isMutating) return false;
 
@@ -116,9 +150,7 @@ class InvoiceProvider extends ChangeNotifier {
         invoiceKey: invoiceKey,
       );
 
-      if (!deleted) {
-        return false;
-      }
+      if (!deleted) return false;
 
       if (invoiceKey != null) {
         _removeInvoiceFromMemory(invoiceKey);
@@ -240,7 +272,6 @@ class InvoiceProvider extends ChangeNotifier {
     if (updatedKey == null) return false;
 
     final index = _invoices.indexWhere((invoice) => invoice.key == updatedKey);
-
     if (index == -1) return false;
 
     final nextInvoices = List<InvoiceModel>.of(_invoices, growable: true);
@@ -267,6 +298,21 @@ class InvoiceProvider extends ChangeNotifier {
     } else {
       loadInvoices(notify: false);
     }
+  }
+
+  static double _clampPaidAmount({
+    required double paidAmount,
+    required double total,
+  }) {
+    if (paidAmount.isNaN || paidAmount.isInfinite || paidAmount < 0) {
+      return 0.0;
+    }
+
+    if (paidAmount > total) {
+      return total;
+    }
+
+    return paidAmount;
   }
 
   void _bumpVersion() {

@@ -1,12 +1,9 @@
-import 'package:fatora/core/utils/search_utils.dart';
-import 'package:fatora/widgets/customer_search_field.dart';
 import 'package:fatora/widgets/delete_background.dart';
 import 'package:fatora/widgets/invoice/empty_items_state.dart';
 import 'package:fatora/widgets/invoice/invoice_item_sheet.dart';
 import 'package:fatora/widgets/invoice/invoice_item_tile.dart';
-import 'package:fatora/widgets/invoice/totals_header.dart';
+import 'package:fatora/widgets/invoice/invoice_payment_summary_card.dart';
 import 'package:fatora/widgets/liquid_floating_action_button.dart';
-import 'package:fatora/widgets/nosearch_result_state.dart';
 import 'package:fatora/widgets/pdf_action_button.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -15,7 +12,7 @@ import '../data/models/invoice_item_model.dart';
 import '../data/models/invoice_model.dart';
 import '../providers/invoice_provider.dart';
 
-class InvoiceDetailsScreen extends StatefulWidget {
+class InvoiceDetailsScreen extends StatelessWidget {
   final InvoiceModel invoice;
   final ValueChanged<InvoiceModel> onExport;
 
@@ -26,196 +23,67 @@ class InvoiceDetailsScreen extends StatefulWidget {
   });
 
   @override
-  State<InvoiceDetailsScreen> createState() => _InvoiceDetailsScreenState();
-}
-
-class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
-  final TextEditingController _searchController = TextEditingController();
-
-  String _searchQuery = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController.addListener(_onSearchChanged);
-  }
-
-  @override
-  void dispose() {
-    _searchController
-      ..removeListener(_onSearchChanged)
-      ..dispose();
-
-    super.dispose();
-  }
-
-  void _onSearchChanged() {
-    final nextQuery = SearchUtils.normalize(_searchController.text);
-
-    if (nextQuery == _searchQuery) return;
-
-    setState(() {
-      _searchQuery = nextQuery;
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final provider = context.watch<InvoiceProvider>();
 
-    final currentInvoice =
-        provider.invoiceByKey(widget.invoice.key) ?? widget.invoice;
+    final currentInvoice = provider.invoiceByKey(invoice.key) ?? invoice;
 
     final colorScheme = Theme.of(context).colorScheme;
-
     final sortedItems = _sortedItemsWithOriginalIndexes(currentInvoice.items);
-    final filteredItems = _filterItemsByCustomerName(sortedItems, _searchQuery);
-    final hasSearchQuery = _searchQuery.isNotEmpty;
-
-    final title = currentInvoice.title.trim().isEmpty
-        ? 'فاتورة بدون عنوان'
-        : currentInvoice.title.trim();
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis),
-
-          // In RTL, actions appear on the left side.
+          title: Text(
+            currentInvoice.displayTitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: currentInvoice.unpaidTotal == 0
+                  ? Colors.green
+                  : Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
           actions: [
             Padding(
               padding: const EdgeInsetsDirectional.only(end: 15),
               child: PdfActionButton(
                 size: 36,
                 iconSize: 19,
-                onPressed: () => widget.onExport(currentInvoice),
+
+                onPressed: () => onExport(currentInvoice),
               ),
             ),
           ],
         ),
-        floatingActionButton: LiquidFloatingActionButton(
-          onPressed: () {
-            showInvoiceItemSheet(context, invoice: currentInvoice);
-          },
-          label: 'إضافة عنصر',
-          icon: Icons.add_rounded,
-        ),
+        floatingActionButton: currentInvoice.canEditItems
+            ? LiquidFloatingActionButton(
+                onPressed: () {
+                  showInvoiceItemSheet(context, invoice: currentInvoice);
+                },
+                label: 'إضافة عنصر',
+                icon: Icons.add_rounded,
+              )
+            : null,
         body: Column(
           children: [
-            TotalsHeader(invoice: currentInvoice),
-            CustomerSearchField(
-              controller: _searchController,
-              enabled: currentInvoice.items.isNotEmpty,
-              onClear: _searchController.clear,
-              labelText: 'بحث باسم العميل',
-              enabledHintText: 'اكتب اسم العميل لعرض العناصر المطابقة',
-              disabledHintText: 'أضف عناصر أولاً لتفعيل البحث',
-            ),
+            InvoicePaymentSummaryCard(invoice: currentInvoice),
             Expanded(
-              child: _buildItemsList(
-                context: context,
-                colorScheme: colorScheme,
-                currentInvoice: currentInvoice,
-                filteredItems: filteredItems,
+              child: _ItemsList(
+                invoice: currentInvoice,
+                items: sortedItems,
+                emptyColor: colorScheme.primary,
               ),
             ),
-            if (hasSearchQuery && filteredItems.isNotEmpty)
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Text(
-                    'تم عرض ${filteredItems.length} نتيجة مطابقة لاسم العميل',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildItemsList({
-    required BuildContext context,
-    required ColorScheme colorScheme,
-    required InvoiceModel currentInvoice,
-    required List<_IndexedInvoiceItem> filteredItems,
-  }) {
-    if (currentInvoice.items.isEmpty) {
-      return EmptyItemsState(color: colorScheme.primary);
-    }
-
-    if (filteredItems.isEmpty) {
-      return NoSearchResultsState(
-        color: colorScheme.primary,
-        title: 'لا توجد عناصر مطابقة',
-        message:
-            'جرّب كتابة اسم العميل بطريقة مختلفة أو امسح البحث لعرض كل العناصر.',
-      );
-    }
-
-    return ListView.separated(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-      itemCount: filteredItems.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final sortedItem = filteredItems[index];
-        final item = sortedItem.item;
-        final originalIndex = sortedItem.originalIndex;
-
-        return Dismissible(
-          key: ValueKey(
-            '${currentInvoice.key}-${item.date.microsecondsSinceEpoch}-$originalIndex',
-          ),
-          direction: DismissDirection.horizontal,
-          confirmDismiss: (_) {
-            return _confirmAndDeleteItem(
-              context: context,
-              invoice: currentInvoice,
-              index: originalIndex,
-            );
-          },
-          background: const DeleteBackground(),
-          secondaryBackground: const DeleteBackground(),
-          child: InvoiceItemTile(
-            item: item,
-            onEdit: () {
-              showInvoiceItemSheet(
-                context,
-                invoice: currentInvoice,
-                itemIndex: originalIndex,
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  List<_IndexedInvoiceItem> _filterItemsByCustomerName(
-    List<_IndexedInvoiceItem> sortedItems,
-    String query,
-  ) {
-    if (query.isEmpty) return sortedItems;
-
-    return [
-      for (final indexedItem in sortedItems)
-        if (_customerNameMatchesQuery(indexedItem.item, query)) indexedItem,
-    ];
-  }
-
-  bool _customerNameMatchesQuery(InvoiceItemModel item, String query) {
-    final customerName = SearchUtils.normalize(item.displayCustomerName);
-    return customerName.contains(query);
-  }
-
-  List<_IndexedInvoiceItem> _sortedItemsWithOriginalIndexes(
+  static List<_IndexedInvoiceItem> _sortedItemsWithOriginalIndexes(
     List<InvoiceItemModel> items,
   ) {
     final indexedItems = [
@@ -224,13 +92,11 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     ];
 
     indexedItems.sort((a, b) {
-      final paymentStatusComparison = _paymentSortRank(
+      final statusComparison = _paymentSortRank(
         a.item,
       ).compareTo(_paymentSortRank(b.item));
 
-      if (paymentStatusComparison != 0) {
-        return paymentStatusComparison;
-      }
+      if (statusComparison != 0) return statusComparison;
 
       return b.item.date.compareTo(a.item.date);
     });
@@ -238,8 +104,69 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
     return indexedItems;
   }
 
-  int _paymentSortRank(InvoiceItemModel item) {
-    return item.isPaid ? 1 : 0;
+  static int _paymentSortRank(InvoiceItemModel item) {
+    if (!item.isPaid && item.remainingValue > 0) return 0;
+    return 1;
+  }
+}
+
+class _ItemsList extends StatelessWidget {
+  final InvoiceModel invoice;
+  final List<_IndexedInvoiceItem> items;
+  final Color emptyColor;
+
+  const _ItemsList({
+    required this.invoice,
+    required this.items,
+    required this.emptyColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (invoice.items.isEmpty) {
+      return EmptyItemsState(color: emptyColor);
+    }
+
+    return ListView.separated(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      itemCount: items.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final indexedItem = items[index];
+        final item = indexedItem.item;
+        final originalIndex = indexedItem.originalIndex;
+
+        return Dismissible(
+          key: ValueKey(
+            '${invoice.key}-${item.date.microsecondsSinceEpoch}-$originalIndex',
+          ),
+          direction: DismissDirection.horizontal,
+          confirmDismiss: (_) {
+            return _confirmAndDeleteItem(
+              context: context,
+              invoice: invoice,
+              index: originalIndex,
+            );
+          },
+          background: const DeleteBackground(),
+          secondaryBackground: const DeleteBackground(),
+          child: InvoiceItemTile(
+            item: item,
+            canEdit: invoice.unpaidTotal > 0,
+            onEdit: () {
+              if (invoice.unpaidTotal <= 0) return;
+
+              showInvoiceItemSheet(
+                context,
+                invoice: invoice,
+                itemIndex: originalIndex,
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 
   Future<bool?> _confirmDeleteItem(BuildContext context) {
@@ -253,18 +180,14 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
             content: const Text('هل أنت متأكد من حذف هذا العنصر؟'),
             actions: [
               TextButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext, false);
-                },
+                onPressed: () => Navigator.pop(dialogContext, false),
                 child: const Text('إلغاء'),
               ),
               FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.error,
                 ),
-                onPressed: () {
-                  Navigator.pop(dialogContext, true);
-                },
+                onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('حذف'),
               ),
             ],

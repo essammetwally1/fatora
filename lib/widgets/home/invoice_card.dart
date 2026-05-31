@@ -356,32 +356,26 @@ class _InvoiceStatus {
       );
     }
 
-    var unpaidAmount = 0.0;
+    final remaining = invoice.unpaidTotal;
 
-    for (final item in invoice.items) {
-      if (!item.isPaid && item.remainingValue > 0) {
-        unpaidAmount += item.remainingValue;
-      }
-    }
-
-    if (unpaidAmount > 0) {
-      return _InvoiceStatus(
-        text: 'غير مكتملة',
-        remainingText: 'متبقي ${Formatters.formatMoney(unpaidAmount)}',
-        icon: Icons.error_outline_rounded,
+    if (remaining <= 0 && invoice.total > 0) {
+      return const _InvoiceStatus(
+        text: 'مكتملة',
+        remainingText: '',
+        icon: Icons.check_circle_outline_rounded,
         badgeIcon: Icons.receipt_long_rounded,
-        color: AppTheme.red,
-        iconColor: AppTheme.red,
+        color: AppTheme.green,
+        iconColor: AppTheme.green,
       );
     }
 
-    return const _InvoiceStatus(
-      text: 'مكتملة',
-      remainingText: '',
-      icon: Icons.check_circle_outline_rounded,
+    return _InvoiceStatus(
+      text: 'غير مكتملة',
+      remainingText: 'متبقي ${Formatters.formatMoney(remaining)}',
+      icon: Icons.error_outline_rounded,
       badgeIcon: Icons.receipt_long_rounded,
-      color: AppTheme.green,
-      iconColor: AppTheme.primary,
+      color: AppTheme.red,
+      iconColor: AppTheme.red,
     );
   }
 }
