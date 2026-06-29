@@ -20,19 +20,22 @@ class InvoiceModelAdapter extends TypeAdapter<InvoiceModel> {
       title: fields[0] as String,
       items: (fields[1] as List).cast<InvoiceItemModel>(),
       paidAmount: fields[2] == null ? 0.0 : fields[2] as double,
+      createdAt: fields[3] as DateTime?,
     );
   }
 
   @override
   void write(BinaryWriter writer, InvoiceModel obj) {
     writer
-      ..writeByte(3)
+      ..writeByte(4)
       ..writeByte(0)
       ..write(obj.title)
       ..writeByte(1)
       ..write(obj.items)
       ..writeByte(2)
-      ..write(obj.paidAmount);
+      ..write(obj.paidAmount)
+      ..writeByte(3)
+      ..write(obj.createdAt);
   }
 
   @override

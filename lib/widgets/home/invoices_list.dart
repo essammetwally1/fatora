@@ -1,9 +1,11 @@
 import 'package:fatora/widgets/home/invoice_card.dart';
+import 'package:fatora/widgets/home/invoice_day_header.dart';
 import 'package:fatora/widgets/home/invoice_pdf_actions_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/utils/formatters.dart';
 import '../../data/models/invoice_model.dart';
 import '../../providers/invoice_provider.dart';
 import '../../screens/invoice_details_screen.dart';
@@ -14,6 +16,7 @@ class InvoicesList extends StatelessWidget {
   final List<InvoiceModel> invoices;
   final int totalInvoiceCount;
   final bool hasSearchQuery;
+  final ScrollController scrollController;
   final ValueChanged<InvoiceModel> onEditInvoice;
 
   const InvoicesList({
@@ -21,6 +24,7 @@ class InvoicesList extends StatelessWidget {
     required this.invoices,
     required this.totalInvoiceCount,
     required this.hasSearchQuery,
+    required this.scrollController,
     required this.onEditInvoice,
   });
 
@@ -38,14 +42,17 @@ class InvoicesList extends StatelessWidget {
       );
     }
 
+    final entries = _InvoiceListEntry.buildEntries(invoices);
+
     return ListView.separated(
+      controller: scrollController,
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
       scrollCacheExtent: ScrollCacheExtent.pixels(700),
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
       addSemanticIndexes: false,
-      itemCount: invoices.length + 1,
+      itemCount: entries.length + 1,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         if (index == 0) {
@@ -54,7 +61,20 @@ class InvoicesList extends StatelessWidget {
           );
         }
 
-        final invoice = invoices[index - 1];
+        final entry = entries[index - 1];
+
+        if (entry.isHeader) {
+          return InvoiceDayHeader(
+            key: ValueKey<String>(
+              'invoice-day-${entry.day!.millisecondsSinceEpoch}-${entry.isLegacy}',
+            ),
+            date: entry.day!,
+            isLegacy: entry.isLegacy,
+            invoiceCount: entry.count,
+          );
+        }
+
+        final invoice = entry.invoice!;
 
         return InvoiceCard(
           key: ValueKey(invoice.key ?? Object.hash(invoice.title, index)),
@@ -139,5 +159,72 @@ class InvoicesList extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class _InvoiceListEntry {
+  final DateTime? day;
+  final bool isLegacy;
+  final int count;
+  final InvoiceModel? invoice;
+
+  const _InvoiceListEntry.header({
+    required this.day,
+    required this.isLegacy,
+    required this.count,
+  }) : invoice = null;
+
+  const _InvoiceListEntry.invoice(this.invoice)
+    : day = null,
+      isLegacy = false,
+      count = 0;
+
+  bool get isHeader => day != null;
+
+  static List<_InvoiceListEntry> buildEntries(List<InvoiceModel> invoices) {
+    if (invoices.isEmpty) return const [];
+
+    final entries = <_InvoiceListEntry>[];
+
+    var index = 0;
+
+    while (index < invoices.length) {
+      final firstInvoice = invoices[index];
+      final day = _startOfDay(firstInvoice.listDate);
+      final isLegacy = firstInvoice.isLegacyDate;
+
+      var groupEnd = index + 1;
+
+      while (groupEnd < invoices.length) {
+        final nextInvoice = invoices[groupEnd];
+
+        final sameDay = Formatters.isSameDay(nextInvoice.listDate, day);
+        final sameLegacyState = nextInvoice.isLegacyDate == isLegacy;
+
+        if (!sameDay || !sameLegacyState) break;
+
+        groupEnd++;
+      }
+
+      entries.add(
+        _InvoiceListEntry.header(
+          day: day,
+          isLegacy: isLegacy,
+          count: groupEnd - index,
+        ),
+      );
+
+      for (var i = index; i < groupEnd; i++) {
+        entries.add(_InvoiceListEntry.invoice(invoices[i]));
+      }
+
+      index = groupEnd;
+    }
+
+    return entries;
+  }
+
+  static DateTime _startOfDay(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
   }
 }

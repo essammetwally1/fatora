@@ -15,6 +15,7 @@ class HomeBody extends StatelessWidget {
   final String searchQuery;
   final VoidCallback onClearSearch;
   final ValueChanged<InvoiceModel> onEditInvoice;
+  final ScrollController invoiceListController;
 
   const HomeBody({
     super.key,
@@ -25,6 +26,7 @@ class HomeBody extends StatelessWidget {
     required this.searchQuery,
     required this.onClearSearch,
     required this.onEditInvoice,
+    required this.invoiceListController,
   });
 
   @override
@@ -56,6 +58,7 @@ class HomeBody extends StatelessWidget {
             invoices: visibleInvoices,
             totalInvoiceCount: invoices.length,
             hasSearchQuery: hasSearchQuery,
+            scrollController: invoiceListController,
             onEditInvoice: onEditInvoice,
           ),
         ),

@@ -160,6 +160,45 @@ class InvoiceProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> applyInvoicePaidDelta({
+    required InvoiceModel invoice,
+    required double deltaAmount,
+  }) async {
+    if (_isMutating) return false;
+    if (deltaAmount.isNaN || deltaAmount.isInfinite || deltaAmount == 0) {
+      return false;
+    }
+
+    final invoiceKey = invoice.key;
+    if (invoiceKey == null) return false;
+
+    final currentInvoice = _invoiceByKey[invoiceKey] ?? invoice;
+
+    final nextPaidAmount = _clampPaidAmount(
+      paidAmount: currentInvoice.paidTotal + deltaAmount,
+      total: currentInvoice.total,
+    );
+
+    if (currentInvoice.paidTotal == nextPaidAmount) return true;
+
+    _isMutating = true;
+    notifyListeners();
+
+    try {
+      final updatedInvoice = await _repository.updateInvoicePaidAmount(
+        invoiceKey: invoiceKey,
+        paidAmount: nextPaidAmount,
+      );
+
+      if (updatedInvoice == null) return false;
+
+      return _replaceInvoiceInMemory(updatedInvoice);
+    } finally {
+      _isMutating = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> deleteInvoice(InvoiceModel invoice) async {
     if (_isMutating) return false;
 
@@ -274,20 +313,6 @@ class InvoiceProvider extends ChangeNotifier {
 
   Future<void> compactStorage() {
     return _repository.compactInvoicesBox();
-  }
-
-  void _setInvoices(List<InvoiceModel> invoices) {
-    _invoices = List<InvoiceModel>.unmodifiable(invoices);
-
-    _invoiceByKey
-      ..clear()
-      ..addEntries(
-        _invoices
-            .where((invoice) => invoice.key != null)
-            .map((invoice) => MapEntry(invoice.key, invoice)),
-      );
-
-    _bumpVersion();
   }
 
   bool _replaceInvoiceInMemory(InvoiceModel updatedInvoice) {

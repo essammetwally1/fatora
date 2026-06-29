@@ -6,6 +6,8 @@ part 'invoice_model.g.dart';
 
 @HiveType(typeId: 1)
 class InvoiceModel extends HiveObject {
+  static final DateTime legacyCreatedAt = DateTime(2000, 1, 1);
+
   @HiveField(0)
   String title;
 
@@ -15,10 +17,18 @@ class InvoiceModel extends HiveObject {
   @HiveField(2, defaultValue: 0.0)
   double paidAmount;
 
+  // New field.
+  // Nullable intentionally:
+  // Old Hive invoices will have null createdAt, so we can group them safely
+  // under one old/legacy day without corrupting old data.
+  @HiveField(3)
+  DateTime? createdAt;
+
   InvoiceModel({
     required String title,
     required List<InvoiceItemModel> items,
     double paidAmount = 0.0,
+    this.createdAt,
   }) : title = title.trim(),
        items = List<InvoiceItemModel>.of(items, growable: true),
        paidAmount = _safePositive(paidAmount) {
@@ -26,6 +36,10 @@ class InvoiceModel extends HiveObject {
   }
 
   int get itemCount => items.length;
+
+  DateTime get listDate => createdAt ?? legacyCreatedAt;
+
+  bool get isLegacyDate => createdAt == null;
 
   double get total {
     var value = 0.0;
@@ -48,7 +62,8 @@ class InvoiceModel extends HiveObject {
   double get paidTotal {
     final invoicePaid = _clamp(paidAmount, total);
 
-    // Supports old Hive data that stored payment inside items before invoice.paidAmount existed.
+    // Supports old Hive data that stored payment inside items
+    // before invoice.paidAmount existed.
     if (invoicePaid <= 0 && hasLegacyItemPayments) {
       return legacyItemsPaidTotal;
     }

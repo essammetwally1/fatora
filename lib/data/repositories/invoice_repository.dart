@@ -23,6 +23,7 @@ class InvoiceRepository {
       title: title.trim(),
       items: <InvoiceItemModel>[],
       paidAmount: 0.0,
+      createdAt: DateTime.now(),
     );
 
     await _box.add(invoice);
@@ -195,6 +196,9 @@ class InvoiceRepository {
   }
 
   static int _compareInvoicesNewestFirst(InvoiceModel a, InvoiceModel b) {
+    final dateCompare = b.listDate.compareTo(a.listDate);
+    if (dateCompare != 0) return dateCompare;
+
     final aKey = a.key;
     final bKey = b.key;
 

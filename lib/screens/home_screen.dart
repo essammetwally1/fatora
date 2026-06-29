@@ -41,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Duration _searchDelay = Duration(milliseconds: 180);
 
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _invoiceListController = ScrollController();
 
   Timer? _searchDebounce;
 
@@ -67,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    _invoiceListController.dispose();
 
     _searchController
       ..removeListener(_onSearchChanged)
@@ -87,6 +89,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         _searchQuery = nextQuery;
+      });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollInvoicesToTop();
       });
     });
   }
@@ -139,6 +145,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onEditInvoice: (invoice) {
             _openInvoiceNameDialog(context, invoice: invoice);
           },
+          invoiceListController: _invoiceListController,
         ),
       ),
     );
@@ -155,7 +162,25 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _searchQuery = '';
       });
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollInvoicesToTop();
+      });
     }
+  }
+
+  void _scrollInvoicesToTop() {
+    if (!_invoiceListController.hasClients) return;
+
+    final position = _invoiceListController.position;
+
+    if (position.pixels <= 0) return;
+
+    _invoiceListController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   List<InvoiceModel> _getFilteredInvoices({
@@ -216,7 +241,16 @@ class _HomeScreenState extends State<HomeScreen> {
         ? await provider.createInvoice(title)
         : await provider.updateInvoiceTitle(invoice: invoice, title: title);
 
-    if (!context.mounted || success) return;
+    if (!context.mounted) return;
+
+    if (success) {
+      if (invoice == null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollInvoicesToTop();
+        });
+      }
+      return;
+    }
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
