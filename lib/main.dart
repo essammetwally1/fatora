@@ -1,3 +1,4 @@
+import 'package:fatora/providers/fixed_menu_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
@@ -31,6 +32,9 @@ class FatoraApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<InvoiceProvider>(
           create: (_) => InvoiceProvider(),
+        ),
+        ChangeNotifierProvider<FixedMenuProvider>(
+          create: (_) => FixedMenuProvider()..loadMenu(notify: false),
         ),
       ],
       child: Consumer<SettingsProvider>(

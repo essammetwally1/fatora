@@ -163,7 +163,7 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
               textDirection: TextDirection.ltr,
               decoration: InputDecoration(
                 isDense: true,
-                labelText: _isSubtract ? 'مبلغ الخصم' : 'مبلغ الإضافة',
+                labelText: _isSubtract ? 'المبلغ المرتجع' : 'المبلغ المدفوع',
                 hintText: _hintText,
                 hintTextDirection: TextDirection.rtl,
                 errorText: _errorText,
@@ -191,7 +191,7 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
               children: [
                 Expanded(
                   child: _SmallPaymentButton(
-                    label: _isSubtract ? 'حفظ الخصم' : 'حفظ الدفعة',
+                    label: _isSubtract ? 'حفظ المرتجع' : 'حفظ الدفعة',
                     icon: _isSubtract
                         ? Icons.remove_rounded
                         : Icons.save_outlined,
@@ -225,11 +225,11 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
 
     if (_isSubtract) {
       if (_currentPaid <= 0) return 'لا يوجد مبلغ مدفوع للخصم منه';
-      return 'اكتب المبلغ المراد خصمه';
+      return 'اكتب المبلغ المراد خصمه من المتبقي';
     }
 
     if (_currentRemaining <= 0) return 'تم دفع الفاتورة بالكامل';
-    return 'اكتب المبلغ المراد إضافته';
+    return 'اكتب المبلغ المراد إضافته الي المدفوع';
   }
 
   void _changeMode(_PaymentMode mode) {
@@ -439,7 +439,7 @@ class _PaymentModeSelector extends StatelessWidget {
       children: [
         Expanded(
           child: _ModeChipButton(
-            label: 'إضافة',
+            label: 'دفع دفعه',
             icon: Icons.add_rounded,
             selected: mode == _PaymentMode.add,
             enabled: enabled,
@@ -450,7 +450,7 @@ class _PaymentModeSelector extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _ModeChipButton(
-            label: 'خصم',
+            label: 'مرتجع',
             icon: Icons.remove_rounded,
             selected: mode == _PaymentMode.subtract,
             enabled: enabled,

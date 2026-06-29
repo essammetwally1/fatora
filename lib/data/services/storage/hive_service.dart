@@ -1,11 +1,13 @@
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../../models/fixed_menu_item_model.dart';
 import '../../models/invoice_item_model.dart';
 import '../../models/invoice_model.dart';
 
 class HiveService {
   static const String invoiceBox = 'invoiceBox';
   static const String settingsBox = 'settingsBox';
+  static const String fixedMenuBox = 'fixedMenuBox';
 
   static const String themeModeKey = 'themeMode';
 
@@ -20,12 +22,20 @@ class HiveService {
       Hive.registerAdapter(InvoiceModelAdapter());
     }
 
+    if (!Hive.isAdapterRegistered(2)) {
+      Hive.registerAdapter(FixedMenuItemModelAdapter());
+    }
+
     if (!Hive.isBoxOpen(invoiceBox)) {
       await Hive.openBox<InvoiceModel>(invoiceBox);
     }
 
     if (!Hive.isBoxOpen(settingsBox)) {
       await Hive.openBox(settingsBox);
+    }
+
+    if (!Hive.isBoxOpen(fixedMenuBox)) {
+      await Hive.openBox<FixedMenuItemModel>(fixedMenuBox);
     }
   }
 
@@ -40,5 +50,9 @@ class HiveService {
 
   static Box getSettingsBox() {
     return Hive.box(settingsBox);
+  }
+
+  static Box<FixedMenuItemModel> getFixedMenuBox() {
+    return Hive.box<FixedMenuItemModel>(fixedMenuBox);
   }
 }

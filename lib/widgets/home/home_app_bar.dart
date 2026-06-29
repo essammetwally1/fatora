@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/settings_provider.dart';
+import '../menu/fixed_menu_sheet.dart';
 
 class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   const HomeAppBar({super.key});
@@ -14,6 +15,13 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       title: const Text('فواتيري'),
       actions: [
+        IconButton(
+          tooltip: 'القائمة الثابتة',
+          onPressed: () {
+            FixedMenuSheet.show(context);
+          },
+          icon: const Icon(Icons.menu_open),
+        ),
         IconButton(
           tooltip: 'تغيير المظهر',
           onPressed: () {
