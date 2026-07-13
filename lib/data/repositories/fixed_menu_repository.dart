@@ -21,9 +21,20 @@ class FixedMenuRepository {
     required String name,
     required double price,
   }) async {
-    final item = FixedMenuItemModel(name: name, price: price);
+    final cleanName = name.trim();
+
+    if (cleanName.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Name cannot be empty');
+    }
+
+    if (!price.isFinite || price <= 0) {
+      throw ArgumentError.value(price, 'price', 'Price must be positive');
+    }
+
+    final item = FixedMenuItemModel(name: cleanName, price: price);
 
     await _box.add(item);
+
     return item;
   }
 
@@ -37,10 +48,29 @@ class FixedMenuRepository {
     final item = _box.get(itemKey);
     if (item == null) return null;
 
-    item.updateData(name: name, price: price);
+    final cleanName = name.trim();
 
-    await item.save();
-    return item;
+    if (cleanName.isEmpty || !price.isFinite || price <= 0) {
+      return null;
+    }
+
+    final previousName = item.name;
+    final previousPrice = item.price;
+    final previousUpdatedAt = item.updatedAt;
+
+    try {
+      item.updateData(name: cleanName, price: price);
+
+      await item.save();
+
+      return item;
+    } catch (_) {
+      item.name = previousName;
+      item.price = previousPrice;
+      item.updatedAt = previousUpdatedAt;
+
+      rethrow;
+    }
   }
 
   Future<bool> deleteItem({

@@ -42,11 +42,18 @@ class InvoiceRepository {
     final cleanTitle = title.trim();
     if (cleanTitle.isEmpty) return null;
 
-    invoice.title = cleanTitle;
-    invoice.normalizeBasicData();
+    final previousTitle = invoice.title;
 
-    await invoice.save();
-    return invoice;
+    try {
+      invoice.title = cleanTitle;
+
+      await invoice.save();
+
+      return invoice;
+    } catch (_) {
+      invoice.title = previousTitle;
+      rethrow;
+    }
   }
 
   Future<InvoiceModel?> updateInvoicePaidAmount({
@@ -54,22 +61,43 @@ class InvoiceRepository {
     required double paidAmount,
   }) async {
     if (invoiceKey == null) return null;
+    if (!paidAmount.isFinite) return null;
 
     final invoice = _box.get(invoiceKey);
     if (invoice == null) return null;
 
-    invoice.normalizeBasicData();
-    invoice.paidAmount = _clampPaidAmount(
-      paidAmount: paidAmount,
-      total: invoice.total,
-    );
+    final previousPaidAmount = invoice.paidAmount;
 
-    // Important: after user edits invoice-level payment,
-    // old item-level payment must not override the new invoice payment.
-    invoice.clearLegacyItemPayments();
+    final legacySnapshots = invoice.items
+        .map(
+          (item) => _LegacyPaymentSnapshot(
+            item: item,
+            isPaid: item.isPaid,
+            paidAmount: item.paidAmount,
+          ),
+        )
+        .toList(growable: false);
 
-    await invoice.save();
-    return invoice;
+    try {
+      invoice.paidAmount = _clampPaidAmount(
+        paidAmount: paidAmount,
+        total: invoice.total,
+      );
+
+      invoice.clearLegacyItemPayments();
+
+      await invoice.save();
+
+      return invoice;
+    } catch (_) {
+      invoice.paidAmount = previousPaidAmount;
+
+      for (final snapshot in legacySnapshots) {
+        snapshot.restore();
+      }
+
+      rethrow;
+    }
   }
 
   Future<bool> deleteInvoice({
@@ -99,27 +127,37 @@ class InvoiceRepository {
     required InvoiceItemModel item,
   }) async {
     if (invoiceKey == null) return null;
+    if (!item.price.isFinite || item.price <= 0) return null;
 
     final invoice = _box.get(invoiceKey);
+
     if (invoice == null) return null;
     if (invoice.isPaymentCompleted) return null;
 
     item.normalizeBasicData();
     item.clearLegacyPaymentState();
 
+    final effectivePaidAmount = invoice.paidTotal;
+
+    final previousItems = invoice.items;
+    final previousPaidAmount = invoice.paidAmount;
+
     final nextItems = List<InvoiceItemModel>.of(invoice.items, growable: true)
       ..add(item);
 
-    invoice.items = nextItems;
-    invoice.paidAmount = _clampPaidAmount(
-      paidAmount: invoice.paidAmount,
-      total: _calculateTotal(nextItems),
-    );
+    try {
+      invoice.items = nextItems;
+      invoice.paidAmount = effectivePaidAmount;
 
-    invoice.normalizeBasicData();
+      await invoice.save();
 
-    await invoice.save();
-    return invoice;
+      return invoice;
+    } catch (_) {
+      invoice.items = previousItems;
+      invoice.paidAmount = previousPaidAmount;
+
+      rethrow;
+    }
   }
 
   Future<InvoiceModel?> updateItem({
@@ -130,26 +168,45 @@ class InvoiceRepository {
     if (invoiceKey == null) return null;
 
     final invoice = _box.get(invoiceKey);
+
     if (invoice == null) return null;
     if (invoice.isPaymentCompleted) return null;
     if (!_isValidItemIndex(invoice, index)) return null;
+    if (!item.price.isFinite || item.price <= 0) return null;
 
     item.normalizeBasicData();
     item.clearLegacyPaymentState();
 
+    final effectivePaidAmount = invoice.paidTotal;
+
     final nextItems = List<InvoiceItemModel>.of(invoice.items, growable: true);
+
     nextItems[index] = item;
 
-    invoice.items = nextItems;
-    invoice.paidAmount = _clampPaidAmount(
-      paidAmount: invoice.paidAmount,
-      total: _calculateTotal(nextItems),
-    );
+    final nextTotal = _calculateTotal(nextItems);
 
-    invoice.normalizeBasicData();
+    if (effectivePaidAmount > nextTotal) {
+      return null;
+    }
 
-    await invoice.save();
-    return invoice;
+    final previousItems = invoice.items;
+    final previousPaidAmount = invoice.paidAmount;
+
+    try {
+      invoice.items = nextItems;
+
+      // Also safely promotes old item-level payment to invoice payment.
+      invoice.paidAmount = effectivePaidAmount;
+
+      await invoice.save();
+
+      return invoice;
+    } catch (_) {
+      invoice.items = previousItems;
+      invoice.paidAmount = previousPaidAmount;
+
+      rethrow;
+    }
   }
 
   Future<InvoiceModel?> deleteItem({
@@ -159,23 +216,38 @@ class InvoiceRepository {
     if (invoiceKey == null) return null;
 
     final invoice = _box.get(invoiceKey);
+
     if (invoice == null) return null;
     if (invoice.isPaymentCompleted) return null;
     if (!_isValidItemIndex(invoice, index)) return null;
 
+    final effectivePaidAmount = invoice.paidTotal;
+
     final nextItems = List<InvoiceItemModel>.of(invoice.items, growable: true)
       ..removeAt(index);
 
-    invoice.items = nextItems;
-    invoice.paidAmount = _clampPaidAmount(
-      paidAmount: invoice.paidAmount,
-      total: _calculateTotal(nextItems),
-    );
+    final nextTotal = _calculateTotal(nextItems);
 
-    invoice.normalizeBasicData();
+    if (effectivePaidAmount > nextTotal) {
+      return null;
+    }
 
-    await invoice.save();
-    return invoice;
+    final previousItems = invoice.items;
+    final previousPaidAmount = invoice.paidAmount;
+
+    try {
+      invoice.items = nextItems;
+      invoice.paidAmount = effectivePaidAmount;
+
+      await invoice.save();
+
+      return invoice;
+    } catch (_) {
+      invoice.items = previousItems;
+      invoice.paidAmount = previousPaidAmount;
+
+      rethrow;
+    }
   }
 
   Future<void> migrateLegacyPaymentsToInvoicePayments() async {
@@ -236,5 +308,22 @@ class InvoiceRepository {
     }
 
     return paidAmount;
+  }
+}
+
+class _LegacyPaymentSnapshot {
+  final InvoiceItemModel item;
+  final bool isPaid;
+  final double paidAmount;
+
+  const _LegacyPaymentSnapshot({
+    required this.item,
+    required this.isPaid,
+    required this.paidAmount,
+  });
+
+  void restore() {
+    item.isPaid = isPaid;
+    item.paidAmount = paidAmount;
   }
 }

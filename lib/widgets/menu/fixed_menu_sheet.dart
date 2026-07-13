@@ -14,7 +14,9 @@ class FixedMenuSheet {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      enableDrag: true,
       backgroundColor: Theme.of(context).cardColor,
+      clipBehavior: Clip.antiAlias,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -26,13 +28,17 @@ class FixedMenuSheet {
 class _FixedMenuState {
   final List<FixedMenuItemModel> items;
   final int version;
+  final bool isLoading;
   final bool isMutating;
 
   const _FixedMenuState({
     required this.items,
     required this.version,
+    required this.isLoading,
     required this.isMutating,
   });
+
+  bool get isBusy => isLoading || isMutating;
 
   @override
   bool operator ==(Object other) {
@@ -40,11 +46,14 @@ class _FixedMenuState {
         other is _FixedMenuState &&
             identical(items, other.items) &&
             version == other.version &&
+            isLoading == other.isLoading &&
             isMutating == other.isMutating;
   }
 
   @override
-  int get hashCode => Object.hash(items, version, isMutating);
+  int get hashCode {
+    return Object.hash(items, version, isLoading, isMutating);
+  }
 }
 
 class _FixedMenuSheetContent extends StatelessWidget {
@@ -56,6 +65,7 @@ class _FixedMenuSheetContent extends StatelessWidget {
       (provider) => _FixedMenuState(
         items: provider.items,
         version: provider.version,
+        isLoading: provider.isLoading,
         isMutating: provider.isMutating,
       ),
     );
@@ -76,16 +86,26 @@ class _FixedMenuSheetContent extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 sliver: SliverToBoxAdapter(
                   child: _FixedMenuHeader(
-                    isMutating: state.isMutating,
-                    onAdd: () => _openItemDialog(context),
+                    isBusy: state.isBusy,
+                    onAdd: () {
+                      _openItemDialog(context);
+                    },
                   ),
                 ),
               ),
+              if (state.isBusy)
+                const SliverPadding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: LinearProgressIndicator(minHeight: 3),
+                  ),
+                ),
               if (state.items.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: _EmptyFixedMenuState(
                     color: Theme.of(context).colorScheme.primary,
+                    isLoading: state.isLoading,
                   ),
                 )
               else
@@ -94,25 +114,35 @@ class _FixedMenuSheetContent extends StatelessWidget {
                     16,
                     14,
                     16,
-                    MediaQuery.viewPaddingOf(context).bottom + 16,
+                    MediaQuery.paddingOf(context).bottom + 16,
                   ),
                   sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      if (index.isOdd) {
-                        return const SizedBox(height: 10);
-                      }
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        if (index.isOdd) {
+                          return const SizedBox(height: 10);
+                        }
 
-                      final itemIndex = index ~/ 2;
-                      final item = state.items[itemIndex];
+                        final itemIndex = index ~/ 2;
+                        final item = state.items[itemIndex];
 
-                      return _FixedMenuItemTile(
-                        key: ValueKey(item.key ?? item.displayName),
-                        item: item,
-                        isMutating: state.isMutating,
-                        onEdit: () => _openItemDialog(context, item: item),
-                        onDelete: () => _confirmAndDelete(context, item),
-                      );
-                    }, childCount: state.items.length * 2 - 1),
+                        return _FixedMenuItemTile(
+                          key: _itemKey(item),
+                          item: item,
+                          isBusy: state.isBusy,
+                          onEdit: () {
+                            _openItemDialog(context, item: item);
+                          },
+                          onDelete: () {
+                            _confirmAndDelete(context, item);
+                          },
+                        );
+                      },
+                      childCount: state.items.length * 2 - 1,
+                      addAutomaticKeepAlives: false,
+                      addRepaintBoundaries: true,
+                      addSemanticIndexes: false,
+                    ),
                   ),
                 ),
             ],
@@ -122,43 +152,152 @@ class _FixedMenuSheetContent extends StatelessWidget {
     );
   }
 
+  Key _itemKey(FixedMenuItemModel item) {
+    final key = item.key;
+
+    if (key != null) {
+      return ValueKey<Object>(key);
+    }
+
+    // Stable while filtering, sorting, or editing another item.
+    return ObjectKey(item);
+  }
+
   Future<void> _openItemDialog(
     BuildContext context, {
     FixedMenuItemModel? item,
   }) async {
     final provider = context.read<FixedMenuProvider>();
 
-    if (provider.isMutating) return;
+    if (provider.isLoading || provider.isMutating) {
+      _showMessage(
+        context,
+        provider.lastErrorMessage ?? 'توجد عملية أخرى قيد التنفيذ',
+      );
+      return;
+    }
+
+    FixedMenuItemModel? currentItem;
+
+    if (item != null) {
+      final itemKey = item.key;
+
+      if (itemKey == null) {
+        _showMessage(context, 'تعذر تحديد الصنف المطلوب تعديله');
+        return;
+      }
+
+      currentItem = provider.itemByKey(itemKey);
+
+      if (currentItem == null) {
+        _showMessage(context, 'لم يعد الصنف موجودًا');
+        return;
+      }
+    }
 
     final input = await showDialog<FixedMenuItemInput>(
       context: context,
-      builder: (_) => FixedMenuItemDialog(initialItem: item),
+      builder: (_) {
+        return FixedMenuItemDialog(initialItem: currentItem);
+      },
     );
 
-    if (input == null || !context.mounted) return;
+    if (input == null || !context.mounted) {
+      return;
+    }
 
-    final saved = item == null
-        ? await provider.createItem(name: input.name, price: input.price)
-        : await provider.updateItem(
-            item: item,
-            name: input.name,
-            price: input.price,
-          );
+    if (provider.isMutating) {
+      _showMessage(context, 'توجد عملية حفظ أخرى قيد التنفيذ');
+      return;
+    }
 
-    if (!context.mounted || saved) return;
+    bool saved;
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('تعذر حفظ الصنف، حاول مرة أخرى')),
+    if (currentItem == null) {
+      saved = await provider.createItem(name: input.name, price: input.price);
+    } else {
+      final latestItem = provider.itemByKey(currentItem.key);
+
+      if (latestItem == null) {
+        _showMessage(context, 'لم يعد الصنف موجودًا');
+        return;
+      }
+
+      saved = await provider.updateItem(
+        item: latestItem,
+        name: input.name,
+        price: input.price,
       );
+    }
+
+    if (!context.mounted || saved) {
+      return;
+    }
+
+    _showMessage(
+      context,
+      provider.lastErrorMessage ?? 'تعذر حفظ الصنف، حاول مرة أخرى',
+    );
   }
 
   Future<void> _confirmAndDelete(
     BuildContext context,
     FixedMenuItemModel item,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final provider = context.read<FixedMenuProvider>();
+
+    if (provider.isLoading || provider.isMutating) {
+      _showMessage(
+        context,
+        provider.lastErrorMessage ?? 'توجد عملية أخرى قيد التنفيذ',
+      );
+      return;
+    }
+
+    final itemKey = item.key;
+
+    if (itemKey == null) {
+      _showMessage(context, 'تعذر تحديد الصنف المطلوب حذفه');
+      return;
+    }
+
+    final currentItem = provider.itemByKey(itemKey);
+
+    if (currentItem == null) {
+      _showMessage(context, 'لم يعد الصنف موجودًا');
+      return;
+    }
+
+    final confirmed = await _showDeleteDialog(context, currentItem);
+
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+
+    final latestItem = provider.itemByKey(itemKey);
+
+    if (latestItem == null) {
+      _showMessage(context, 'تم حذف الصنف بالفعل');
+      return;
+    }
+
+    final deleted = await provider.deleteItem(latestItem);
+
+    if (!context.mounted || deleted) {
+      return;
+    }
+
+    _showMessage(
+      context,
+      provider.lastErrorMessage ?? 'تعذر حذف الصنف، حاول مرة أخرى',
+    );
+  }
+
+  Future<bool?> _showDeleteDialog(
+    BuildContext context,
+    FixedMenuItemModel item,
+  ) {
+    return showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         final colorScheme = Theme.of(dialogContext).colorScheme;
@@ -166,11 +305,18 @@ class _FixedMenuSheetContent extends StatelessWidget {
         return Directionality(
           textDirection: TextDirection.rtl,
           child: AlertDialog(
+            scrollable: true,
             title: const Text('حذف الصنف'),
-            content: Text('هل تريد حذف "${item.displayName}" من القائمة؟'),
+            content: Text(
+              'هل تريد حذف '
+              '"${item.displayName}" '
+              'من القائمة؟',
+            ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
+                onPressed: () {
+                  Navigator.pop(dialogContext, false);
+                },
                 child: const Text('إلغاء'),
               ),
               FilledButton(
@@ -178,7 +324,9 @@ class _FixedMenuSheetContent extends StatelessWidget {
                   backgroundColor: colorScheme.error,
                   foregroundColor: colorScheme.onError,
                 ),
-                onPressed: () => Navigator.pop(dialogContext, true),
+                onPressed: () {
+                  Navigator.pop(dialogContext, true);
+                },
                 child: const Text('حذف'),
               ),
             ],
@@ -186,26 +334,20 @@ class _FixedMenuSheetContent extends StatelessWidget {
         );
       },
     );
+  }
 
-    if (confirmed != true || !context.mounted) return;
-
-    final deleted = await context.read<FixedMenuProvider>().deleteItem(item);
-
-    if (!context.mounted || deleted) return;
-
+  void _showMessage(BuildContext context, String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('تعذر حذف الصنف، حاول مرة أخرى')),
-      );
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
 class _FixedMenuHeader extends StatelessWidget {
-  final bool isMutating;
+  final bool isBusy;
   final VoidCallback onAdd;
 
-  const _FixedMenuHeader({required this.isMutating, required this.onAdd});
+  const _FixedMenuHeader({required this.isBusy, required this.onAdd});
 
   @override
   Widget build(BuildContext context) {
@@ -220,49 +362,77 @@ class _FixedMenuHeader extends StatelessWidget {
             width: 56,
             height: 5,
             decoration: BoxDecoration(
-              color: Theme.of(context).dividerColor,
+              color: theme.dividerColor,
               borderRadius: BorderRadius.circular(50),
             ),
           ),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: .10),
-                borderRadius: BorderRadius.circular(15),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final scaledFontSize = MediaQuery.textScalerOf(context).scale(14);
+
+            final compact = constraints.maxWidth < 350 || scaledFontSize > 19;
+
+            final identity = Expanded(
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary.withValues(alpha: .10),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Icon(Icons.menu, color: colorScheme.primary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'القائمة الثابتة',
+                      maxLines: compact ? 2 : 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              child: Icon(Icons.menu, color: colorScheme.primary),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'القائمة الثابتة',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
+            );
+
+            final addButton = SizedBox(
               height: 40,
               child: FilledButton.icon(
-                onPressed: isMutating ? null : onAdd,
+                onPressed: isBusy ? null : onAdd,
                 icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('إضافة'),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('إضافة', maxLines: 1),
+                ),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ),
-            ),
-          ],
+            );
+
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(children: [identity]),
+                  const SizedBox(height: 10),
+                  addButton,
+                ],
+              );
+            }
+
+            return Row(
+              children: [identity, const SizedBox(width: 8), addButton],
+            );
+          },
         ),
         const SizedBox(height: 8),
         Text(
@@ -279,14 +449,14 @@ class _FixedMenuHeader extends StatelessWidget {
 
 class _FixedMenuItemTile extends StatelessWidget {
   final FixedMenuItemModel item;
-  final bool isMutating;
+  final bool isBusy;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _FixedMenuItemTile({
     super.key,
     required this.item,
-    required this.isMutating,
+    required this.isBusy,
     required this.onEdit,
     required this.onDelete,
   });
@@ -320,7 +490,6 @@ class _FixedMenuItemTile extends StatelessWidget {
               children: [
                 _FixedMenuTileIcon(color: colorScheme.primary),
                 const SizedBox(width: 10),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -347,11 +516,9 @@ class _FixedMenuItemTile extends StatelessWidget {
                     ],
                   ),
                 ),
-
                 const SizedBox(width: 6),
-
                 _FixedMenuTileActions(
-                  isMutating: isMutating,
+                  isBusy: isBusy,
                   onEdit: onEdit,
                   onDelete: onDelete,
                 ),
@@ -419,12 +586,12 @@ class _FixedMenuPricePill extends StatelessWidget {
 }
 
 class _FixedMenuTileActions extends StatelessWidget {
-  final bool isMutating;
+  final bool isBusy;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _FixedMenuTileActions({
-    required this.isMutating,
+    required this.isBusy,
     required this.onEdit,
     required this.onDelete,
   });
@@ -440,7 +607,7 @@ class _FixedMenuTileActions extends StatelessWidget {
           tooltip: 'تعديل',
           icon: Icons.edit_outlined,
           color: colorScheme.primary,
-          enabled: !isMutating,
+          enabled: !isBusy,
           onPressed: onEdit,
         ),
         const SizedBox(height: 4),
@@ -448,7 +615,7 @@ class _FixedMenuTileActions extends StatelessWidget {
           tooltip: 'حذف',
           icon: Icons.delete_outline_rounded,
           color: colorScheme.error,
-          enabled: !isMutating,
+          enabled: !isBusy,
           onPressed: onDelete,
         ),
       ],
@@ -474,7 +641,7 @@ class _FixedMenuActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox.square(
-      dimension: 34,
+      dimension: 40,
       child: IconButton(
         tooltip: tooltip,
         onPressed: enabled ? onPressed : null,
@@ -497,34 +664,40 @@ class _FixedMenuActionButton extends StatelessWidget {
 
 class _EmptyFixedMenuState extends StatelessWidget {
   final Color color;
+  final bool isLoading;
 
-  const _EmptyFixedMenuState({required this.color});
+  const _EmptyFixedMenuState({required this.color, required this.isLoading});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.menu, color: color.withValues(alpha: .65), size: 54),
+            if (isLoading)
+              const CircularProgressIndicator()
+            else
+              Icon(Icons.menu, color: color.withValues(alpha: .65), size: 54),
             const SizedBox(height: 10),
             Text(
-              'لا توجد أصناف ثابتة بعد',
+              isLoading ? 'جاري تحميل القائمة' : 'لا توجد أصناف ثابتة بعد',
               textAlign: TextAlign.center,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w900,
               ),
             ),
-            const SizedBox(height: 5),
-            Text(
-              'اضغط إضافة لإنشاء أول صنف سريع.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall,
-            ),
+            if (!isLoading) ...[
+              const SizedBox(height: 5),
+              Text(
+                'اضغط إضافة لإنشاء أول صنف سريع.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
           ],
         ),
       ),

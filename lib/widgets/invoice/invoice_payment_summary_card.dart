@@ -8,6 +8,8 @@ import '../../providers/invoice_provider.dart';
 
 enum _PaymentMode { add, subtract }
 
+enum _PaymentSaveAction { manual, complete }
+
 class InvoicePaymentSummaryCard extends StatefulWidget {
   final InvoiceModel invoice;
 
@@ -19,66 +21,156 @@ class InvoicePaymentSummaryCard extends StatefulWidget {
 }
 
 class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
+  static const Map<String, String> _digitReplacements = {
+    '٠': '0',
+    '١': '1',
+    '٢': '2',
+    '٣': '3',
+    '٤': '4',
+    '٥': '5',
+    '٦': '6',
+    '٧': '7',
+    '٨': '8',
+    '٩': '9',
+    '۰': '0',
+    '۱': '1',
+    '۲': '2',
+    '۳': '3',
+    '۴': '4',
+    '۵': '5',
+    '۶': '6',
+    '۷': '7',
+    '۸': '8',
+    '۹': '9',
+  };
+
   final TextEditingController _amountController = TextEditingController();
   final FocusNode _amountFocusNode = FocusNode();
 
-  bool _saving = false;
+  _PaymentMode _mode = _PaymentMode.add;
+  _PaymentSaveAction? _savingAction;
+
+  double _typedAmount = 0.0;
   String? _errorText;
 
-  _PaymentMode _mode = _PaymentMode.add;
-  double _typedAmount = 0.0;
-
-  double get _currentPaid => widget.invoice.paidTotal;
-  double get _total => widget.invoice.total;
-  double get _currentRemaining => widget.invoice.unpaidTotal;
-
-  bool get _canWriteAmount => _total > 0 && !_saving;
-  bool get _canCompletePayment => _currentRemaining > 0 && !_saving;
+  bool get _saving => _savingAction != null;
 
   bool get _isSubtract => _mode == _PaymentMode.subtract;
 
+  double get _currentPaid => widget.invoice.paidTotal;
+
+  double get _total => widget.invoice.total;
+
+  double get _currentRemaining => widget.invoice.unpaidTotal;
+
   double get _effectiveDelta {
-    if (_typedAmount <= 0) return 0.0;
+    if (!_typedAmount.isFinite || _typedAmount <= 0) {
+      return 0.0;
+    }
+
     return _isSubtract ? -_typedAmount : _typedAmount;
   }
 
   double get _validDeltaPreview {
     final delta = _effectiveDelta;
 
-    if (delta == 0) return 0.0;
+    if (delta == 0) {
+      return 0.0;
+    }
 
     if (delta > 0) {
-      if (delta > _currentRemaining) return _currentRemaining;
-      return delta;
+      return delta > _currentRemaining ? _currentRemaining : delta;
     }
 
     final subtractAmount = delta.abs();
-    if (subtractAmount > _currentPaid) return -_currentPaid;
 
-    return delta;
+    return subtractAmount > _currentPaid ? -_currentPaid : delta;
   }
 
   double get _previewPaid {
     final value = _currentPaid + _validDeltaPreview;
 
-    if (value <= 0) return 0.0;
-    if (value >= _total) return _total;
+    if (!value.isFinite || value <= 0) {
+      return 0.0;
+    }
+
+    if (value >= _total) {
+      return _total;
+    }
 
     return value;
   }
 
   double get _previewRemaining {
     final value = _total - _previewPaid;
-    return value <= 0 ? 0.0 : value;
+
+    if (!value.isFinite || value <= 0) {
+      return 0.0;
+    }
+
+    return value;
   }
 
-  bool get _isComplete => _total > 0 && _previewPaid >= _total;
-  bool get _isPartial => _previewPaid > 0 && !_isComplete;
+  bool get _isComplete {
+    return _total > 0 && _previewPaid >= _total;
+  }
+
+  bool get _isPartial {
+    return _previewPaid > 0 && !_isComplete;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    _mode = _preferredMode(widget.invoice);
+  }
+
+  @override
+  void didUpdateWidget(covariant InvoicePaymentSummaryCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final oldKey = oldWidget.invoice.key;
+    final newKey = widget.invoice.key;
+
+    final differentInvoice =
+        oldKey != newKey ||
+        (oldKey == null &&
+            newKey == null &&
+            !identical(oldWidget.invoice, widget.invoice));
+
+    if (differentInvoice) {
+      _amountController.clear();
+      _typedAmount = 0.0;
+      _errorText = null;
+      _mode = _preferredMode(widget.invoice);
+      return;
+    }
+
+    if (_saving) {
+      return;
+    }
+
+    if (_amountController.text.isEmpty) {
+      if (_mode == _PaymentMode.add &&
+          _currentRemaining <= 0 &&
+          _currentPaid > 0) {
+        _mode = _PaymentMode.subtract;
+      } else if (_mode == _PaymentMode.subtract &&
+          _currentPaid <= 0 &&
+          _currentRemaining > 0) {
+        _mode = _PaymentMode.add;
+      }
+    }
+
+    _errorText = _validateAmountText();
+  }
 
   @override
   void dispose() {
     _amountController.dispose();
     _amountFocusNode.dispose();
+
     super.dispose();
   }
 
@@ -86,6 +178,26 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    final providerBusy = context.select<InvoiceProvider, bool>(
+      (provider) => provider.isMutating,
+    );
+
+    final interactionEnabled =
+        !_saving && !providerBusy && _total.isFinite && _total > 0;
+
+    final canAdd =
+        interactionEnabled &&
+        _currentRemaining.isFinite &&
+        _currentRemaining > 0;
+
+    final canSubtract =
+        interactionEnabled && _currentPaid.isFinite && _currentPaid > 0;
+
+    final canWriteAmount = _isSubtract ? canSubtract : canAdd;
+
+    final canCompletePayment = canAdd;
+
     final statusColor = _statusColor(colorScheme);
     final operationColor = _operationColor(colorScheme);
 
@@ -101,6 +213,7 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
           border: Border.all(color: statusColor, width: 1.25),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             _StatusHeader(
               icon: _statusIcon,
@@ -145,19 +258,20 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
             const SizedBox(height: 12),
             _PaymentModeSelector(
               mode: _mode,
-              enabled: _canWriteAmount,
+              addEnabled: canAdd,
+              subtractEnabled: canSubtract,
               onChanged: _changeMode,
             ),
             const SizedBox(height: 10),
             TextFormField(
               controller: _amountController,
               focusNode: _amountFocusNode,
-              enabled: _canWriteAmount,
+              enabled: canWriteAmount,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
-                signed: true,
+                signed: false,
               ),
-              inputFormatters: const [_SignedDecimalTextInputFormatter()],
+              inputFormatters: const [_PositiveDecimalTextInputFormatter()],
               textInputAction: TextInputAction.done,
               textAlign: TextAlign.right,
               textDirection: TextDirection.ltr,
@@ -172,19 +286,27 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
                       ? Icons.remove_circle_outline_rounded
                       : Icons.payments_outlined,
                   size: 20,
-                  color: operationColor,
+                  color: canWriteAmount
+                      ? operationColor
+                      : colorScheme.onSurfaceVariant,
                 ),
                 suffixIcon: _amountController.text.isEmpty
                     ? null
                     : IconButton(
                         tooltip: 'مسح',
-                        onPressed: _clearAmountInput,
+                        onPressed: canWriteAmount ? _clearAmountInput : null,
                         icon: const Icon(Icons.close_rounded, size: 20),
                       ),
               ),
-              onTapOutside: (_) => _amountFocusNode.unfocus(),
+              onTapOutside: (_) {
+                _amountFocusNode.unfocus();
+              },
               onChanged: _onAmountChanged,
-              onFieldSubmitted: (_) => _submitPaymentChange(),
+              onFieldSubmitted: (_) {
+                if (canWriteAmount) {
+                  _submitPaymentChange();
+                }
+              },
             ),
             const SizedBox(height: 9),
             Row(
@@ -197,8 +319,8 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
                         : Icons.save_outlined,
                     color: operationColor,
                     filled: true,
-                    loading: _saving,
-                    onPressed: _canWriteAmount ? _submitPaymentChange : null,
+                    loading: _savingAction == _PaymentSaveAction.manual,
+                    onPressed: canWriteAmount ? _submitPaymentChange : null,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -208,8 +330,8 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
                     icon: Icons.done_all_rounded,
                     color: Colors.green,
                     filled: false,
-                    loading: _saving,
-                    onPressed: _canCompletePayment ? _completePayment : null,
+                    loading: _savingAction == _PaymentSaveAction.complete,
+                    onPressed: canCompletePayment ? _completePayment : null,
                   ),
                 ),
               ],
@@ -221,34 +343,46 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
   }
 
   String get _hintText {
-    if (_total <= 0) return 'أضف عناصر أولاً';
-
-    if (_isSubtract) {
-      if (_currentPaid <= 0) return 'لا يوجد مبلغ مدفوع للخصم منه';
-      return 'اكتب المبلغ المراد خصمه من المتبقي';
+    if (!_total.isFinite || _total <= 0) {
+      return 'أضف عناصر أولاً';
     }
 
-    if (_currentRemaining <= 0) return 'تم دفع الفاتورة بالكامل';
-    return 'اكتب المبلغ المراد إضافته الي المدفوع';
+    if (_isSubtract) {
+      if (!_currentPaid.isFinite || _currentPaid <= 0) {
+        return 'لا يوجد مبلغ مدفوع للخصم منه';
+      }
+
+      return 'اكتب المبلغ المراد خصمه من المدفوع';
+    }
+
+    if (!_currentRemaining.isFinite || _currentRemaining <= 0) {
+      return 'تم دفع الفاتورة بالكامل';
+    }
+
+    return 'اكتب المبلغ المراد إضافته إلى المدفوع';
   }
 
   void _changeMode(_PaymentMode mode) {
-    if (_mode == mode || _saving) return;
+    if (_mode == mode || _saving) {
+      return;
+    }
 
-    final currentText = _amountController.text.trim();
+    final provider = context.read<InvoiceProvider>();
+
+    if (provider.isMutating) {
+      return;
+    }
+
+    final modeAvailable = mode == _PaymentMode.add
+        ? _currentRemaining > 0
+        : _currentPaid > 0;
+
+    if (!modeAvailable) {
+      return;
+    }
 
     setState(() {
       _mode = mode;
-
-      if (mode == _PaymentMode.add && currentText.startsWith('-')) {
-        final nextText = currentText.substring(1);
-
-        _amountController.value = TextEditingValue(
-          text: nextText,
-          selection: TextSelection.collapsed(offset: nextText.length),
-        );
-      }
-
       _syncTypedAmountFromText();
       _errorText = _validateAmountText();
     });
@@ -257,12 +391,8 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
   }
 
   void _onAmountChanged(String value) {
-    final clean = value.trim();
-
-    if (clean.startsWith('-') && _mode != _PaymentMode.subtract) {
-      setState(() {
-        _mode = _PaymentMode.subtract;
-      });
+    if (_saving) {
+      return;
     }
 
     setState(() {
@@ -272,11 +402,16 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
   }
 
   void _syncTypedAmountFromText() {
-    final parsed = _parseSignedAmount(_amountController.text);
-    _typedAmount = parsed == null ? 0.0 : parsed.abs();
+    final parsed = _parseAmount(_amountController.text);
+
+    _typedAmount = parsed ?? 0.0;
   }
 
   void _clearAmountInput() {
+    if (_saving) {
+      return;
+    }
+
     _amountController.clear();
 
     setState(() {
@@ -285,109 +420,173 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
     });
   }
 
-  double? _parseSignedAmount(String value) {
-    final clean = value.trim().replaceAll(',', '.');
+  double? _parseAmount(String value) {
+    var clean = value.trim().replaceAll('٫', '.').replaceAll(',', '.');
 
-    if (clean.isEmpty || clean == '-' || clean == '.' || clean == '-.') {
+    for (final entry in _digitReplacements.entries) {
+      clean = clean.replaceAll(entry.key, entry.value);
+    }
+
+    if (clean.isEmpty || clean == '.') {
       return null;
     }
 
     final parsed = double.tryParse(clean);
-    if (parsed == null || parsed.isNaN || parsed.isInfinite) return null;
+
+    if (parsed == null || !parsed.isFinite) {
+      return null;
+    }
 
     return parsed;
   }
 
-  String? _validateAmountText() {
+  String? _validateAmountText({bool required = false}) {
     final text = _amountController.text.trim();
 
-    if (text.isEmpty || text == '-' || text == '.' || text == '-.') {
-      return null;
+    if (text.isEmpty || text == '.' || text == '٫') {
+      return required ? 'اكتب المبلغ أولاً' : null;
     }
 
-    final signedValue = _parseSignedAmount(text);
-    if (signedValue == null) return 'اكتب مبلغ صحيح';
+    final amount = _parseAmount(text);
 
-    final amount = signedValue.abs();
+    if (amount == null) {
+      return 'اكتب مبلغًا صحيحًا';
+    }
 
-    if (amount == 0) return 'المبلغ لا يمكن أن يكون صفر';
+    if (amount <= 0) {
+      return 'المبلغ يجب أن يكون أكبر من صفر';
+    }
 
     if (_isSubtract) {
-      if (_currentPaid <= 0) return 'لا يوجد مبلغ مدفوع للخصم منه';
-      if (amount > _currentPaid) return 'الخصم أكبر من المدفوع';
+      if (!_currentPaid.isFinite || _currentPaid <= 0) {
+        return 'لا يوجد مبلغ مدفوع للخصم منه';
+      }
+
+      if (amount > _currentPaid) {
+        return 'المرتجع أكبر من المبلغ المدفوع';
+      }
+
       return null;
     }
 
-    if (_currentRemaining <= 0) return 'تم دفع الفاتورة بالكامل';
-    if (amount > _currentRemaining) return 'المبلغ أكبر من المتبقي';
+    if (!_currentRemaining.isFinite || _currentRemaining <= 0) {
+      return 'تم دفع الفاتورة بالكامل';
+    }
+
+    if (amount > _currentRemaining) {
+      return 'المبلغ أكبر من المتبقي';
+    }
 
     return null;
   }
 
   Future<void> _submitPaymentChange() async {
-    if (_saving || _total <= 0) return;
-
-    _amountFocusNode.unfocus();
-
-    final error = _validateAmountText();
-    if (error != null) {
-      setState(() => _errorText = error);
+    if (_saving || !_total.isFinite || _total <= 0) {
       return;
     }
 
-    final signedValue = _parseSignedAmount(_amountController.text);
-    if (signedValue == null || signedValue == 0) return;
+    _amountFocusNode.unfocus();
 
-    final amount = signedValue.abs();
+    final error = _validateAmountText(required: true);
+
+    if (error != null) {
+      setState(() {
+        _errorText = error;
+      });
+
+      return;
+    }
+
+    final amount = _parseAmount(_amountController.text);
+
+    if (amount == null || amount <= 0) {
+      return;
+    }
+
     final delta = _isSubtract ? -amount : amount;
 
-    await _saveDelta(delta);
+    await _saveDelta(delta, action: _PaymentSaveAction.manual);
   }
 
   Future<void> _completePayment() async {
-    if (!_canCompletePayment) return;
+    if (_saving || !_currentRemaining.isFinite || _currentRemaining <= 0) {
+      return;
+    }
 
     _amountFocusNode.unfocus();
 
-    final delta = _currentRemaining;
-    if (delta <= 0) return;
-
-    await _saveDelta(delta);
+    await _saveDelta(_currentRemaining, action: _PaymentSaveAction.complete);
   }
 
-  Future<void> _saveDelta(double delta) async {
-    setState(() => _saving = true);
+  Future<void> _saveDelta(
+    double delta, {
+    required _PaymentSaveAction action,
+  }) async {
+    if (_saving || !delta.isFinite || delta == 0) {
+      return;
+    }
 
-    final saved = await context.read<InvoiceProvider>().applyInvoicePaidDelta(
-      invoice: widget.invoice,
-      deltaAmount: delta,
-    );
+    final provider = context.read<InvoiceProvider>();
 
-    if (!mounted) return;
+    if (provider.isMutating) {
+      _showErrorMessage(
+        provider.lastErrorMessage ?? 'توجد عملية حفظ أخرى قيد التنفيذ',
+      );
+      return;
+    }
 
     setState(() {
-      _saving = false;
+      _savingAction = action;
+    });
+
+    var saved = false;
+
+    try {
+      saved = await provider.applyInvoicePaidDelta(
+        invoice: widget.invoice,
+        deltaAmount: delta,
+      );
+    } catch (error, stackTrace) {
+      debugPrint(
+        'InvoicePaymentSummaryCard save failed:\n'
+        'Error: $error\n'
+        'StackTrace: $stackTrace',
+      );
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final latestInvoice =
+        provider.invoiceByKey(widget.invoice.key) ?? widget.invoice;
+
+    setState(() {
+      _savingAction = null;
 
       if (saved) {
         _typedAmount = 0.0;
         _errorText = null;
         _amountController.clear();
-
-        if (widget.invoice.unpaidTotal <= 0) {
-          _mode = _PaymentMode.subtract;
-        } else {
-          _mode = _PaymentMode.add;
-        }
+        _mode = _preferredMode(latestInvoice);
       }
     });
 
-    if (!saved && mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('تعذر حفظ العملية، حاول مرة أخرى')),
-        );
+    if (!saved) {
+      _showErrorMessage(
+        provider.lastErrorMessage ?? 'تعذر حفظ العملية، حاول مرة أخرى',
+      );
     }
+  }
+
+  void _showErrorMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   Color _operationColor(ColorScheme colorScheme) {
@@ -395,41 +594,78 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
   }
 
   Color _statusColor(ColorScheme colorScheme) {
-    if (_isComplete) return Colors.green;
-    if (_isPartial) return Colors.blue;
+    if (_isComplete) {
+      return Colors.green;
+    }
+
+    if (_isPartial) {
+      return Colors.blue;
+    }
+
     return colorScheme.error;
   }
 
   String get _statusText {
-    if (_isComplete) return 'مدفوعة بالكامل';
-    if (_isPartial) return 'مدفوعة جزئياً';
+    if (_isComplete) {
+      return 'مدفوعة بالكامل';
+    }
+
+    if (_isPartial) {
+      return 'مدفوعة جزئيًا';
+    }
+
     return 'غير مدفوعة';
   }
 
   IconData get _statusIcon {
-    if (_isComplete) return Icons.check_circle_rounded;
-    if (_isPartial) return Icons.timelapse_rounded;
+    if (_isComplete) {
+      return Icons.check_circle_rounded;
+    }
+
+    if (_isPartial) {
+      return Icons.timelapse_rounded;
+    }
+
     return Icons.error_outline_rounded;
   }
 
   double _paymentProgress() {
-    if (_total <= 0) return 0.0;
-    return (_previewPaid / _total).clamp(0.0, 1.0);
+    if (!_total.isFinite || _total <= 0) {
+      return 0.0;
+    }
+
+    final progress = _previewPaid / _total;
+
+    if (!progress.isFinite) {
+      return 0.0;
+    }
+
+    return progress.clamp(0.0, 1.0);
   }
 
   int _paymentPercent() {
     return (_paymentProgress() * 100).round();
   }
+
+  static _PaymentMode _preferredMode(InvoiceModel invoice) {
+    if (invoice.unpaidTotal <= 0 && invoice.paidTotal > 0) {
+      return _PaymentMode.subtract;
+    }
+
+    return _PaymentMode.add;
+  }
 }
 
 class _PaymentModeSelector extends StatelessWidget {
   final _PaymentMode mode;
-  final bool enabled;
+  final bool addEnabled;
+  final bool subtractEnabled;
   final ValueChanged<_PaymentMode> onChanged;
 
   const _PaymentModeSelector({
     required this.mode,
-    required this.enabled,
+    required this.addEnabled,
+    required this.subtractEnabled,
     required this.onChanged,
   });
 
@@ -439,12 +675,14 @@ class _PaymentModeSelector extends StatelessWidget {
       children: [
         Expanded(
           child: _ModeChipButton(
-            label: 'دفع دفعه',
+            label: 'دفع دفعة',
             icon: Icons.add_rounded,
             selected: mode == _PaymentMode.add,
-            enabled: enabled,
+            enabled: addEnabled,
             color: Colors.green,
-            onTap: () => onChanged(_PaymentMode.add),
+            onTap: () {
+              onChanged(_PaymentMode.add);
+            },
           ),
         ),
         const SizedBox(width: 8),
@@ -453,9 +691,11 @@ class _PaymentModeSelector extends StatelessWidget {
             label: 'مرتجع',
             icon: Icons.remove_rounded,
             selected: mode == _PaymentMode.subtract,
-            enabled: enabled,
+            enabled: subtractEnabled,
             color: Theme.of(context).colorScheme.error,
-            onTap: () => onChanged(_PaymentMode.subtract),
+            onTap: () {
+              onChanged(_PaymentMode.subtract);
+            },
           ),
         ),
       ],
@@ -483,25 +723,39 @@ class _ModeChipButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final foreground = selected ? Colors.white : color;
-    final background = selected ? color : color.withValues(alpha: .075);
+
+    final foreground = !enabled
+        ? color.withValues(alpha: .38)
+        : selected
+        ? Colors.white
+        : color;
+
+    final background = !enabled
+        ? color.withValues(alpha: .035)
+        : selected
+        ? color
+        : color.withValues(alpha: .075);
 
     return SizedBox(
       height: 38,
       child: TextButton.icon(
         onPressed: enabled ? onTap : null,
         icon: Icon(icon, size: 18),
-        label: Text(label),
+        label: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(label, maxLines: 1),
+        ),
         style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           backgroundColor: background,
           foregroundColor: foreground,
-          disabledForegroundColor: foreground.withValues(alpha: .38),
+          disabledForegroundColor: foreground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
             side: BorderSide(
-              color: selected
+              color: selected && enabled
                   ? Colors.transparent
-                  : color.withValues(alpha: .24),
+                  : color.withValues(alpha: enabled ? .24 : .08),
             ),
           ),
           textStyle: theme.textTheme.labelLarge?.copyWith(
@@ -513,10 +767,12 @@ class _ModeChipButton extends StatelessWidget {
   }
 }
 
-class _SignedDecimalTextInputFormatter extends TextInputFormatter {
-  const _SignedDecimalTextInputFormatter();
+class _PositiveDecimalTextInputFormatter extends TextInputFormatter {
+  const _PositiveDecimalTextInputFormatter();
 
-  static final RegExp _validInput = RegExp(r'^-?\d*([.,]\d*)?$');
+  static final RegExp _validInput = RegExp(
+    r'^[0-9٠-٩۰-۹]*([.,٫][0-9٠-٩۰-۹]{0,2})?$',
+  );
 
   @override
   TextEditingValue formatEditUpdate(
@@ -525,7 +781,7 @@ class _SignedDecimalTextInputFormatter extends TextInputFormatter {
   ) {
     final text = newValue.text.trim();
 
-    if (text.isEmpty || text == '-' || _validInput.hasMatch(text)) {
+    if (text.isEmpty || _validInput.hasMatch(text)) {
       return newValue;
     }
 
@@ -602,6 +858,7 @@ class _SummaryMiniBox extends StatelessWidget {
           border: Border.all(color: color.withValues(alpha: .16)),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               title,
@@ -653,12 +910,13 @@ class _SmallPaymentButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final foreground = filled ? Colors.white : color;
+
     final background = filled ? color : color.withValues(alpha: .075);
 
     return SizedBox(
       height: 38,
       child: TextButton.icon(
-        onPressed: onPressed,
+        onPressed: loading ? null : onPressed,
         icon: loading
             ? SizedBox.square(
                 dimension: 15,
@@ -668,9 +926,12 @@ class _SmallPaymentButton extends StatelessWidget {
                 ),
               )
             : Icon(icon, size: 17),
-        label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        label: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(label, maxLines: 1),
+        ),
         style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           backgroundColor: background,
           foregroundColor: foreground,
           disabledForegroundColor: foreground.withValues(alpha: .45),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:fatora/data/models/invoices_totals.dart';
+import 'package:fatora/widgets/home/scroll_to_top.dart';
 import 'package:fatora/widgets/liquid_floating_action_button.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -39,6 +40,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const Duration _searchDelay = Duration(milliseconds: 180);
+  static const Duration _scrollTopDuration = Duration(milliseconds: 280);
+
+  static const double _scrollTopVisibilityOffset = 260.0;
+  static const double _scrollTopTolerance = 2.0;
 
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _invoiceListController = ScrollController();
@@ -54,10 +59,15 @@ class _HomeScreenState extends State<HomeScreen> {
   int? _lastTotalsVersion;
   InvoicesTotals? _totals;
 
+  bool _showScrollTopButton = false;
+  bool _scrollToTopScheduled = false;
+
   @override
   void initState() {
     super.initState();
+
     _searchController.addListener(_onSearchChanged);
+    _invoiceListController.addListener(_onInvoiceListScrolled);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -68,13 +78,32 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
-    _invoiceListController.dispose();
+
+    _invoiceListController
+      ..removeListener(_onInvoiceListScrolled)
+      ..dispose();
 
     _searchController
       ..removeListener(_onSearchChanged)
       ..dispose();
 
     super.dispose();
+  }
+
+  void _onInvoiceListScrolled() {
+    if (!_invoiceListController.hasClients) return;
+
+    final position = _invoiceListController.position;
+
+    if (!position.hasPixels) return;
+
+    final shouldShow = position.pixels > _scrollTopVisibilityOffset;
+
+    if (shouldShow == _showScrollTopButton) return;
+
+    setState(() {
+      _showScrollTopButton = shouldShow;
+    });
   }
 
   void _onSearchChanged() {
@@ -91,9 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _searchQuery = nextQuery;
       });
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollInvoicesToTop();
-      });
+      _requestInvoicesScrollToTop();
     });
   }
 
@@ -135,17 +162,25 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         ),
-        body: HomeBody(
-          invoices: invoices,
-          visibleInvoices: filteredInvoices,
-          totals: totals,
-          searchController: _searchController,
-          searchQuery: _searchQuery,
-          onClearSearch: _clearSearch,
-          onEditInvoice: (invoice) {
-            _openInvoiceNameDialog(context, invoice: invoice);
-          },
-          invoiceListController: _invoiceListController,
+        body: Stack(
+          children: [
+            HomeBody(
+              invoices: invoices,
+              visibleInvoices: filteredInvoices,
+              totals: totals,
+              searchController: _searchController,
+              searchQuery: _searchQuery,
+              onClearSearch: _clearSearch,
+              onEditInvoice: (invoice) {
+                _openInvoiceNameDialog(context, invoice: invoice);
+              },
+              invoiceListController: _invoiceListController,
+            ),
+            ScrollToTopButton(
+              visible: _showScrollTopButton,
+              onPressed: _requestInvoicesScrollToTop,
+            ),
+          ],
         ),
       ),
     );
@@ -155,18 +190,34 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_searchController.text.isEmpty && _searchQuery.isEmpty) return;
 
     _searchDebounce?.cancel();
-
     _searchController.clear();
 
-    if (_searchQuery.isNotEmpty) {
-      setState(() {
-        _searchQuery = '';
-      });
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollInvoicesToTop();
-      });
+    if (_searchQuery.isEmpty) {
+      _requestInvoicesScrollToTop();
+      return;
     }
+
+    setState(() {
+      _searchQuery = '';
+    });
+
+    _requestInvoicesScrollToTop();
+  }
+
+  void _requestInvoicesScrollToTop() {
+    if (!mounted) return;
+
+    if (_scrollToTopScheduled) return;
+
+    _scrollToTopScheduled = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToTopScheduled = false;
+
+      if (!mounted) return;
+
+      _scrollInvoicesToTop();
+    });
   }
 
   void _scrollInvoicesToTop() {
@@ -174,12 +225,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final position = _invoiceListController.position;
 
-    if (position.pixels <= 0) return;
+    if (!position.hasPixels) return;
 
-    _invoiceListController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
+    final target = position.minScrollExtent;
+    final current = position.pixels;
+
+    if ((current - target).abs() <= _scrollTopTolerance) {
+      if (_showScrollTopButton) {
+        setState(() => _showScrollTopButton = false);
+      }
+      return;
+    }
+
+    unawaited(
+      _invoiceListController.animateTo(
+        target,
+        duration: _scrollTopDuration,
+        curve: Curves.easeOutCubic,
+      ),
     );
   }
 
@@ -245,9 +308,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (success) {
       if (invoice == null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scrollInvoicesToTop();
-        });
+        _requestInvoicesScrollToTop();
       }
       return;
     }
