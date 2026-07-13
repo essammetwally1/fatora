@@ -1,3 +1,6 @@
+import 'package:fatora/data/models/invoice_month_key.dart';
+import 'package:fatora/data/models/invoice_month_snapshot.dart';
+import 'package:fatora/data/models/invoices_totals.dart';
 import 'package:flutter/material.dart';
 
 import '../data/models/invoice_item_model.dart';
@@ -11,6 +14,12 @@ class InvoiceProvider extends ChangeNotifier {
   final Map<dynamic, InvoiceModel> _invoiceByKey = <dynamic, InvoiceModel>{};
 
   int _version = 0;
+  InvoiceMonthKey _currentMonth = InvoiceMonthKey.current();
+  List<InvoiceMonthSnapshot> _invoiceMonths = const [];
+  final Map<InvoiceMonthKey, InvoiceMonthSnapshot> _snapshotByMonth =
+      <InvoiceMonthKey, InvoiceMonthSnapshot>{};
+  List<InvoiceModel> _currentMonthInvoices = const [];
+  InvoicesTotals _currentMonthTotals = InvoicesTotals.empty();
 
   bool _isLoading = false;
   bool _isMutating = false;
@@ -25,11 +34,46 @@ class InvoiceProvider extends ChangeNotifier {
 
   List<InvoiceModel> get invoices => _invoices;
 
+  InvoiceMonthKey get currentMonth => _currentMonth;
+
+  List<InvoiceModel> get currentMonthInvoices => _currentMonthInvoices;
+
+  InvoicesTotals get currentMonthTotals => _currentMonthTotals;
+
+  List<InvoiceMonthSnapshot> get invoiceMonths => _invoiceMonths;
+
   int get version => _version;
 
   bool get isLoading => _isLoading;
 
   bool get isMutating => _isMutating;
+
+  InvoiceMonthSnapshot? monthSnapshot(InvoiceMonthKey month) {
+    return _snapshotByMonth[month];
+  }
+
+  List<InvoiceModel> invoicesForMonth(InvoiceMonthKey month) {
+    return _snapshotByMonth[month]?.invoices ?? const <InvoiceModel>[];
+  }
+
+  InvoicesTotals totalsForMonth(InvoiceMonthKey month) {
+    return _snapshotByMonth[month]?.totals ?? InvoicesTotals.empty();
+  }
+
+  bool refreshCurrentMonthIfNeeded({bool notify = true}) {
+    final nextCurrentMonth = InvoiceMonthKey.current();
+    if (nextCurrentMonth == _currentMonth) return false;
+
+    _currentMonth = nextCurrentMonth;
+    _rebuildMonthlySnapshots();
+    _bumpVersion();
+
+    if (notify) {
+      notifyListeners();
+    }
+
+    return true;
+  }
 
   InvoiceModel? invoiceByKey(dynamic key) {
     if (key == null) return null;
@@ -59,6 +103,8 @@ class InvoiceProvider extends ChangeNotifier {
               .map((invoice) => MapEntry(invoice.key, invoice)),
         );
 
+      _currentMonth = InvoiceMonthKey.current();
+      _rebuildMonthlySnapshots();
       _bumpVersion();
 
       return true;
@@ -97,6 +143,12 @@ class InvoiceProvider extends ChangeNotifier {
     return _runMutation(
       failureMessage: 'تعذر إنشاء الفاتورة',
       operation: () async {
+        final actualCurrentMonth = InvoiceMonthKey.current();
+
+        if (actualCurrentMonth != _currentMonth) {
+          _currentMonth = actualCurrentMonth;
+        }
+
         final createdInvoice = await _repository.createInvoice(cleanTitle);
 
         _invoices = List<InvoiceModel>.unmodifiable([
@@ -110,6 +162,7 @@ class InvoiceProvider extends ChangeNotifier {
           _invoiceByKey[createdKey] = createdInvoice;
         }
 
+        _rebuildMonthlySnapshots();
         _bumpVersion();
 
         return true;
@@ -446,7 +499,7 @@ class InvoiceProvider extends ChangeNotifier {
 
     _invoices = List<InvoiceModel>.unmodifiable(nextInvoices);
     _invoiceByKey[updatedKey] = updatedInvoice;
-
+    _rebuildMonthlySnapshots();
     _bumpVersion();
 
     return true;
@@ -466,9 +519,60 @@ class InvoiceProvider extends ChangeNotifier {
     _invoices = List<InvoiceModel>.unmodifiable(nextInvoices);
     _invoiceByKey.remove(invoiceKey);
 
+    _rebuildMonthlySnapshots();
     _bumpVersion();
 
     return true;
+  }
+
+  void _rebuildMonthlySnapshots() {
+    final grouped = <InvoiceMonthKey, List<InvoiceModel>>{};
+
+    for (final invoice in _invoices) {
+      final month = invoice.isLegacyDate
+          ? _currentMonth
+          : InvoiceMonthKey.fromDate(invoice.listDate);
+
+      grouped.putIfAbsent(month, () => <InvoiceModel>[]).add(invoice);
+    }
+
+    // The current month must always exist,
+    // even when it contains zero invoices.
+    grouped.putIfAbsent(_currentMonth, () => <InvoiceModel>[]);
+
+    final sortedMonths = grouped.keys.toList(growable: false)..sort();
+
+    final snapshots = <InvoiceMonthSnapshot>[];
+
+    final snapshotMap = <InvoiceMonthKey, InvoiceMonthSnapshot>{};
+
+    for (final month in sortedMonths) {
+      final monthInvoices = List<InvoiceModel>.unmodifiable(
+        grouped[month] ?? const <InvoiceModel>[],
+      );
+
+      final snapshot = InvoiceMonthSnapshot(
+        month: month,
+        invoices: monthInvoices,
+        totals: InvoicesTotals.fromInvoices(monthInvoices),
+        isCurrentMonth: month == _currentMonth,
+      );
+
+      snapshots.add(snapshot);
+      snapshotMap[month] = snapshot;
+    }
+
+    _invoiceMonths = List<InvoiceMonthSnapshot>.unmodifiable(snapshots);
+
+    _snapshotByMonth
+      ..clear()
+      ..addAll(snapshotMap);
+
+    final currentSnapshot = _snapshotByMonth[_currentMonth];
+
+    _currentMonthInvoices = currentSnapshot?.invoices ?? const <InvoiceModel>[];
+
+    _currentMonthTotals = currentSnapshot?.totals ?? InvoicesTotals.empty();
   }
 
   static double _clampPaidAmount({

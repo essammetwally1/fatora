@@ -52,3 +52,9 @@ class FatoraApp extends StatelessWidget {
     );
   }
 }
+
+// flutter clean
+// flutter pub get
+// flutter build apk --release
+// flutter build web --release
+// firebase deploy --only hosting

@@ -2,13 +2,22 @@ import 'package:flutter/material.dart';
 
 class HomeEmptyState extends StatelessWidget {
   final Color color;
+  final String title;
+  final String message;
 
-  const HomeEmptyState({super.key, required this.color});
+  const HomeEmptyState({
+    super.key,
+    required this.color,
+    this.title = 'لا توجد فواتير في هذا الشهر',
+    this.message = 'اضغط على زر “فاتورة جديدة” لإنشاء فاتورة لهذا الشهر.',
+  });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -16,15 +25,19 @@ class HomeEmptyState extends StatelessWidget {
             Icon(Icons.receipt_long_outlined, size: 72, color: color),
             const SizedBox(height: 16),
             Text(
-              'لا توجد فواتير حتى الآن',
-              style: Theme.of(context).textTheme.titleMedium,
+              title,
               textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
-              'اضغط على زر “فاتورة جديدة” لإنشاء فاتورة بقيمة ابتدائية 0 ج.م.',
-              style: Theme.of(context).textTheme.bodyMedium,
+              message,
               textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),

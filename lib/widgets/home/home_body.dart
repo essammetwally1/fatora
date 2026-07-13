@@ -1,9 +1,9 @@
-import 'package:fatora/data/models/invoices_totals.dart';
+import 'package:fatora/widgets/home/home_empty_state.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/models/invoice_model.dart';
+import '../../data/models/invoices_totals.dart';
 import '../customer_search_field.dart';
-import 'home_empty_state.dart';
 import 'home_totals_section.dart';
 import 'invoices_list.dart';
 
@@ -17,6 +17,11 @@ class HomeBody extends StatelessWidget {
   final ValueChanged<InvoiceModel> onEditInvoice;
   final ScrollController invoiceListController;
 
+  final bool allowCreateInvoice;
+
+  final String emptyTitle;
+  final String searchLabelText;
+
   const HomeBody({
     super.key,
     required this.invoices,
@@ -27,16 +32,15 @@ class HomeBody extends StatelessWidget {
     required this.onClearSearch,
     required this.onEditInvoice,
     required this.invoiceListController,
+    required this.allowCreateInvoice,
+    this.emptyTitle = 'لا توجد فواتير في هذا الشهر',
+    this.searchLabelText = 'بحث في فواتير الشهر',
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-
-    if (invoices.isEmpty) {
-      return HomeEmptyState(color: colorScheme.primary);
-    }
-
+    final hasInvoices = invoices.isNotEmpty;
     final hasSearchQuery = searchQuery.trim().isNotEmpty;
 
     return Column(
@@ -47,20 +51,28 @@ class HomeBody extends StatelessWidget {
         ),
         CustomerSearchField(
           controller: searchController,
-          enabled: true,
+          enabled: hasInvoices,
           onClear: onClearSearch,
-          labelText: 'بحث في الفواتير',
+          labelText: searchLabelText,
           enabledHintText: 'اكتب اسم الفاتورة فقط',
-          disabledHintText: 'أضف فواتير أولاً لتفعيل البحث',
+          disabledHintText: 'لا توجد فواتير لتفعيل البحث',
         ),
         Expanded(
-          child: InvoicesList(
-            invoices: visibleInvoices,
-            totalInvoiceCount: invoices.length,
-            hasSearchQuery: hasSearchQuery,
-            scrollController: invoiceListController,
-            onEditInvoice: onEditInvoice,
-          ),
+          child: hasInvoices
+              ? InvoicesList(
+                  invoices: visibleInvoices,
+                  totalInvoiceCount: invoices.length,
+                  hasSearchQuery: hasSearchQuery,
+                  scrollController: invoiceListController,
+                  onEditInvoice: onEditInvoice,
+                )
+              : HomeEmptyState(
+                  color: colorScheme.primary,
+                  title: emptyTitle,
+                  message: allowCreateInvoice
+                      ? 'اضغط على زر “فاتورة جديدة” لإنشاء فاتورة لهذا الشهر.'
+                      : 'لا توجد فواتير محفوظة ضمن هذا الشهر.',
+                ),
         ),
         if (hasSearchQuery && visibleInvoices.isNotEmpty)
           _SearchResultIndicator(count: visibleInvoices.length),
@@ -138,7 +150,6 @@ class _SearchResultIndicator extends StatelessWidget {
                           'تم عرض $count نتيجة مطابقة',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.start,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: colorScheme.onSurface,
                             fontWeight: FontWeight.w900,
