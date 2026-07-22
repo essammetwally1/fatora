@@ -20,11 +20,22 @@ class InvoiceItemModelAdapter extends TypeAdapter<InvoiceItemModel> {
       date: fields[0] as DateTime?,
       deprecatedCustomerName: fields[1] as String?,
       itemName: fields[2] as String,
-      price: fields[3] as double,
+      price: _readDouble(fields[3]),
       note: fields[4] as String?,
       isPaid: fields[5] as bool,
-      paidAmount: fields[6] as double?,
+      paidAmount: _readNullableDouble(fields[6]),
     );
+  }
+
+  double _readDouble(dynamic value) {
+    if (value is num && value.isFinite) return value.toDouble();
+    return 0.0;
+  }
+
+  double? _readNullableDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num && value.isFinite) return value.toDouble();
+    return 0.0;
   }
 
   @override

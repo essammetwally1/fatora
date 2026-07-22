@@ -19,9 +19,14 @@ class InvoiceModelAdapter extends TypeAdapter<InvoiceModel> {
     return InvoiceModel(
       title: fields[0] as String,
       items: (fields[1] as List).cast<InvoiceItemModel>(),
-      paidAmount: fields[2] == null ? 0.0 : fields[2] as double,
+      paidAmount: _readDouble(fields[2]),
       createdAt: fields[3] as DateTime?,
     );
+  }
+
+  double _readDouble(dynamic value) {
+    if (value is num && value.isFinite) return value.toDouble();
+    return 0.0;
   }
 
   @override

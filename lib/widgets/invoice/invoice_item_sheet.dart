@@ -385,17 +385,51 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
   }
 
   double? _parsePrice(String value) {
-    final clean = value.trim().replaceAll(',', '.');
+    var clean = value.trim().replaceAll('٫', '.').replaceAll(',', '.');
+    clean = _normalizeDigits(clean);
 
     if (clean.isEmpty || clean == '.' || clean == ',') return null;
 
     final parsed = double.tryParse(clean);
 
-    if (parsed == null || parsed.isNaN || parsed.isInfinite) {
+    if (parsed == null || !parsed.isFinite) {
       return null;
     }
 
     return parsed;
+  }
+
+  String _normalizeDigits(String value) {
+    const replacements = <String, String>{
+      '٠': '0',
+      '١': '1',
+      '٢': '2',
+      '٣': '3',
+      '٤': '4',
+      '٥': '5',
+      '٦': '6',
+      '٧': '7',
+      '٨': '8',
+      '٩': '9',
+      '۰': '0',
+      '۱': '1',
+      '۲': '2',
+      '۳': '3',
+      '۴': '4',
+      '۵': '5',
+      '۶': '6',
+      '۷': '7',
+      '۸': '8',
+      '۹': '9',
+    };
+
+    var result = value;
+
+    for (final entry in replacements.entries) {
+      result = result.replaceAll(entry.key, entry.value);
+    }
+
+    return result;
   }
 
   double _safePositive(double value) {
@@ -487,9 +521,9 @@ class _SelectedFixedMenuHint extends StatelessWidget {
 
 class _PositiveDecimalTextInputFormatter extends TextInputFormatter {
   const _PositiveDecimalTextInputFormatter();
-
-  static final RegExp _validInput = RegExp(r'^\d*([.,]\d*)?$');
-
+  static final RegExp _validInput = RegExp(
+    r'^[0-9٠-٩۰-۹]*([.,٫][0-9٠-٩۰-۹]{0,2})?$',
+  );
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
