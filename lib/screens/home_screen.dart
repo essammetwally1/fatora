@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import 'package:fatora/core/utils/app_toast.dart';
+import 'package:fatora/core/utils/ui_feed_back_utils.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/utils/search_utils.dart';
@@ -237,6 +240,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 _openInvoiceNameDialog(context, invoice: invoice);
               },
               invoiceListController: _invoiceListController,
+              onDeleteInvoice: _confirmAndDeleteInvoice,
               allowCreateInvoice: isCurrentMonth,
               emptyTitle: 'لا توجد فواتير في هذا الشهر',
               searchLabelText: 'بحث في فواتير الشهر',
@@ -248,6 +252,54 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _confirmAndDeleteInvoice(InvoiceModel invoice) async {
+    final provider = context.read<InvoiceProvider>();
+
+    if (provider.isMutating) {
+      AppToast.showInfo(context, message: 'توجد عملية حفظ أخرى قيد التنفيذ');
+      return;
+    }
+
+    unawaited(HapticFeedback.selectionClick());
+
+    final invoiceKey = invoice.key;
+
+    final currentInvoice = invoiceKey == null
+        ? invoice
+        : provider.invoiceByKey(invoiceKey) ?? invoice;
+
+    final confirmed = await UiFeedbackUtils.showDeleteInvoiceConfirmation(
+      context: context,
+      invoiceTitle: currentInvoice.displayTitle,
+      itemCount: currentInvoice.itemCount,
+    );
+
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    final deleted = await provider.deleteInvoice(currentInvoice);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (deleted) {
+      unawaited(HapticFeedback.mediumImpact());
+
+      AppToast.showSuccess(context, message: 'تم حذف الفاتورة بنجاح');
+
+      return;
+    }
+
+    unawaited(HapticFeedback.vibrate());
+
+    AppToast.showError(
+      context,
+      message: provider.lastErrorMessage ?? 'تعذر حذف الفاتورة، حاول مرة أخرى',
     );
   }
 
@@ -337,7 +389,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     if (nextSelectedMonth != null &&
         provider.monthSnapshot(nextSelectedMonth) == null) {
-      _showMessage(provider.lastErrorMessage ?? 'لم يعد هذا الشهر متاحًا');
+      AppToast.showError(
+        context,
+        message: provider.lastErrorMessage ?? 'لم يعد هذا الشهر متاحًا',
+      );
       return;
     }
 
@@ -545,7 +600,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
 
     if (invoice == null && _selectedMonth != null) {
-      _showMessage('ارجع إلى الشهر الحالي لإضافة فاتورة جديدة');
+      AppToast.showInfo(
+        context,
+        message: 'ارجع إلى الشهر الحالي لإضافة فاتورة جديدة',
+      );
       return;
     }
 
@@ -589,16 +647,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return;
     }
 
-    _showMessage(
-      provider.lastErrorMessage ?? 'تعذر حفظ الفاتورة، حاول مرة أخرى',
+    AppToast.showError(
+      context,
+      message: provider.lastErrorMessage ?? 'تعذر حفظ الفاتورة، حاول مرة أخرى',
     );
-  }
-
-  void _showMessage(String message) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }

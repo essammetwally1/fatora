@@ -2,11 +2,9 @@ import 'package:fatora/widgets/home/invoice_card.dart';
 import 'package:fatora/widgets/home/invoice_day_header.dart';
 import 'package:fatora/widgets/home/invoice_pdf_actions_sheet.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../core/utils/formatters.dart';
 import '../../data/models/invoice_model.dart';
-import '../../providers/invoice_provider.dart';
 import '../../screens/invoice_details_screen.dart';
 import '../nosearch_result_state.dart';
 import 'invoices_section_header.dart';
@@ -17,6 +15,7 @@ class InvoicesList extends StatefulWidget {
   final bool hasSearchQuery;
   final ScrollController scrollController;
   final ValueChanged<InvoiceModel> onEditInvoice;
+  final ValueChanged<InvoiceModel> onDeleteInvoice;
 
   const InvoicesList({
     super.key,
@@ -25,6 +24,7 @@ class InvoicesList extends StatefulWidget {
     required this.hasSearchQuery,
     required this.scrollController,
     required this.onEditInvoice,
+    required this.onDeleteInvoice,
   });
 
   @override
@@ -104,11 +104,12 @@ class _InvoicesListState extends State<InvoicesList> {
             _openInvoiceDetails(context, invoice);
           },
           onLongPress: () {
-            _deleteInvoiceByLongPress(context, invoice);
+            widget.onDeleteInvoice(invoice);
           },
           onEdit: () {
             widget.onEditInvoice(invoice);
           },
+
           onExport: () {
             _showInvoicePdfActions(context, invoice);
           },
@@ -178,97 +179,6 @@ class _InvoicesListState extends State<InvoicesList> {
     InvoiceModel invoice,
   ) {
     return InvoicePdfActionsSheet.show(context: context, invoice: invoice);
-  }
-
-  Future<void> _deleteInvoiceByLongPress(
-    BuildContext context,
-    InvoiceModel invoice,
-  ) async {
-    final provider = context.read<InvoiceProvider>();
-
-    if (provider.isMutating) {
-      _showMessage(
-        context,
-        provider.lastErrorMessage ?? 'توجد عملية أخرى قيد التنفيذ',
-      );
-      return;
-    }
-
-    final invoiceKey = invoice.key;
-
-    // Use the latest provider instance in case the invoice changed
-    // since this list item was built.
-    final currentInvoice = invoiceKey == null
-        ? invoice
-        : provider.invoiceByKey(invoiceKey) ?? invoice;
-
-    final confirmed = await _confirmDeleteInvoice(context, currentInvoice);
-
-    if (confirmed != true || !context.mounted) {
-      return;
-    }
-
-    final deleted = await provider.deleteInvoice(currentInvoice);
-
-    if (!context.mounted) {
-      return;
-    }
-
-    if (!deleted) {
-      _showMessage(
-        context,
-        provider.lastErrorMessage ?? 'تعذر حذف الفاتورة، حاول مرة أخرى',
-      );
-    }
-  }
-
-  Future<bool?> _confirmDeleteInvoice(
-    BuildContext context,
-    InvoiceModel invoice,
-  ) {
-    return showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        final colorScheme = Theme.of(dialogContext).colorScheme;
-
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: AlertDialog(
-            scrollable: true,
-            title: const Text('حذف الفاتورة'),
-            content: Text(
-              'هل أنت متأكد من حذف '
-              '"${invoice.displayTitle}"؟\n\n'
-              'سيتم حذف جميع العناصر المرتبطة بها.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext, false);
-                },
-                child: const Text('إلغاء'),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: colorScheme.error,
-                  foregroundColor: colorScheme.onError,
-                ),
-                onPressed: () {
-                  Navigator.pop(dialogContext, true);
-                },
-                child: const Text('حذف'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
 

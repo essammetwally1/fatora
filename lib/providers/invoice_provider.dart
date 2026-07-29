@@ -9,7 +9,7 @@ import '../data/repositories/invoice_repository.dart';
 
 class InvoiceProvider extends ChangeNotifier {
   final InvoiceRepository _repository = InvoiceRepository();
-
+  static const double _moneyTolerance = 0.000001;
   List<InvoiceModel> _invoices = const [];
   final Map<dynamic, InvoiceModel> _invoiceByKey = <dynamic, InvoiceModel>{};
 
@@ -121,11 +121,11 @@ class InvoiceProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> migrateLegacyPayments() async {
+  Future<void> migrateStoredInvoices() async {
     await _runMutation(
-      failureMessage: 'تعذر تحديث بيانات الدفع القديمة',
+      failureMessage: 'تعذر تحديث البيانات القديمة',
       operation: () async {
-        await _repository.migrateLegacyPaymentsToInvoicePayments();
+        await _repository.migrateStoredInvoices();
 
         return loadInvoices(notify: false);
       },
@@ -430,7 +430,42 @@ class InvoiceProvider extends ChangeNotifier {
     required InvoiceModel invoice,
     required int index,
   }) async {
+    final invoiceKey = invoice.key;
+
+    final currentInvoice = invoiceKey == null
+        ? invoice
+        : _invoiceByKey[invoiceKey] ?? invoice;
+
+    if (index < 0 || index >= currentInvoice.items.length) {
+      _setOperationError('العنصر لم يعد موجودًا');
+      return false;
+    }
+
+    final itemId = currentInvoice.items[index].id.trim();
+
+    if (itemId.isEmpty) {
+      _setOperationError('تعذر تحديد العنصر');
+      return false;
+    }
+
+    return deleteItems(invoice: currentInvoice, itemIds: <String>{itemId});
+  }
+
+  Future<bool> deleteItems({
+    required InvoiceModel invoice,
+    required Set<String> itemIds,
+  }) async {
     clearError(notify: false);
+
+    final normalizedItemIds = itemIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    if (normalizedItemIds.isEmpty) {
+      _setOperationError('لم يتم تحديد أي عناصر');
+      return false;
+    }
 
     final invoiceKey = invoice.key;
 
@@ -446,21 +481,53 @@ class InvoiceProvider extends ChangeNotifier {
       return false;
     }
 
-    if (index < 0 || index >= currentInvoice.items.length) {
-      _setOperationError('العنصر لم يعد موجودًا');
+    final currentItemIds = currentInvoice.items
+        .map((item) => item.id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    if (!currentItemIds.containsAll(normalizedItemIds)) {
+      _setOperationError('بعض العناصر المحددة لم تعد موجودة');
       return false;
     }
 
+    var nextTotal = 0.0;
+
+    for (final item in currentInvoice.items) {
+      if (!normalizedItemIds.contains(item.id.trim())) {
+        nextTotal += item.price;
+      }
+    }
+
+    if (_isPaidAmountAboveTotal(
+      paidAmount: currentInvoice.paidTotal,
+      total: nextTotal,
+    )) {
+      _setOperationError(
+        'لا يمكن حذف العناصر المحددة لأن إجمالي الفاتورة سيصبح أقل من المبلغ المدفوع',
+      );
+      return false;
+    }
+
+    final isSingleItem = normalizedItemIds.length == 1;
+
     return _runMutation(
-      failureMessage: 'تعذر حذف العنصر',
+      failureMessage: isSingleItem
+          ? 'تعذر حذف العنصر'
+          : 'تعذر حذف العناصر المحددة',
       operation: () async {
-        final updatedInvoice = await _repository.deleteItem(
+        final updatedInvoice = await _repository.deleteItems(
           invoiceKey: invoiceKey,
-          index: index,
+          itemIds: normalizedItemIds,
         );
 
         if (updatedInvoice == null) {
-          _setOperationError('تعذر الحذف؛ لا يمكن جعل الإجمالي أقل من المدفوع');
+          _setOperationError(
+            isSingleItem
+                ? 'تعذر حذف العنصر؛ ربما تغيرت بيانات الفاتورة'
+                : 'تعذر حذف العناصر؛ ربما تغيرت بيانات الفاتورة',
+          );
+
           return false;
         }
 
@@ -573,6 +640,13 @@ class InvoiceProvider extends ChangeNotifier {
     _currentMonthInvoices = currentSnapshot?.invoices ?? const <InvoiceModel>[];
 
     _currentMonthTotals = currentSnapshot?.totals ?? InvoicesTotals.empty();
+  }
+
+  static bool _isPaidAmountAboveTotal({
+    required double paidAmount,
+    required double total,
+  }) {
+    return paidAmount - total > _moneyTolerance;
   }
 
   static double _clampPaidAmount({

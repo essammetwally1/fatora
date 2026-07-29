@@ -15,6 +15,7 @@ class HomeBody extends StatelessWidget {
   final String searchQuery;
   final VoidCallback onClearSearch;
   final ValueChanged<InvoiceModel> onEditInvoice;
+  final ValueChanged<InvoiceModel> onDeleteInvoice;
   final ScrollController invoiceListController;
 
   final bool allowCreateInvoice;
@@ -31,6 +32,7 @@ class HomeBody extends StatelessWidget {
     required this.searchQuery,
     required this.onClearSearch,
     required this.onEditInvoice,
+    required this.onDeleteInvoice,
     required this.invoiceListController,
     required this.allowCreateInvoice,
     this.emptyTitle = 'لا توجد فواتير في هذا الشهر',
@@ -65,6 +67,7 @@ class HomeBody extends StatelessWidget {
                   hasSearchQuery: hasSearchQuery,
                   scrollController: invoiceListController,
                   onEditInvoice: onEditInvoice,
+                  onDeleteInvoice: onDeleteInvoice,
                 )
               : HomeEmptyState(
                   color: colorScheme.primary,

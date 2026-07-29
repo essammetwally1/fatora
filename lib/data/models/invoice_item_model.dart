@@ -1,9 +1,12 @@
 import 'package:hive/hive.dart';
+import 'package:uuid/uuid.dart';
 
 part 'invoice_item_model.g.dart';
 
 @HiveType(typeId: 0)
 class InvoiceItemModel extends HiveObject {
+  static final Uuid _uuid = Uuid();
+
   @HiveField(0)
   DateTime date;
 
@@ -26,7 +29,16 @@ class InvoiceItemModel extends HiveObject {
   @HiveField(6)
   double paidAmount;
 
+  // Stable item identifier.
+  //
+  // defaultValue is required because old Hive records do not contain field 7.
+  // New items receive a UUID immediately, while old items will be migrated
+  // safely in the repository.
+  @HiveField(7, defaultValue: '')
+  String id;
+
   InvoiceItemModel({
+    String? id,
     DateTime? date,
     this.deprecatedCustomerName,
     required String itemName,
@@ -34,7 +46,8 @@ class InvoiceItemModel extends HiveObject {
     this.note,
     bool isPaid = false,
     double? paidAmount,
-  }) : date = date ?? DateTime.now(),
+  }) : id = _normalizeId(id) ?? _uuid.v4(),
+       date = date ?? DateTime.now(),
        itemName = itemName.trim(),
        price = _safePositive(price),
        isPaid = isPaid,
@@ -56,7 +69,32 @@ class InvoiceItemModel extends HiveObject {
 
   bool get hasLegacyPayment => legacyPaidValue > 0;
 
+  /// Ensures that old Hive items receive a persistent stable identifier.
+  ///
+  /// Returns true when the item was changed and the containing invoice
+  /// therefore needs to be saved.
+  bool ensureStableId() {
+    final normalizedId = _normalizeId(id);
+
+    if (normalizedId != null) {
+      if (normalizedId == id) {
+        return false;
+      }
+
+      id = normalizedId;
+      return true;
+    }
+
+    id = _uuid.v4();
+    return true;
+  }
+
+  void regenerateId() {
+    id = _uuid.v4();
+  }
+
   void normalizeBasicData() {
+    id = id.trim();
     itemName = itemName.trim();
     price = _safePositive(price);
   }
@@ -70,6 +108,16 @@ class InvoiceItemModel extends HiveObject {
   void clearLegacyPaymentState() {
     paidAmount = 0.0;
     isPaid = false;
+  }
+
+  static String? _normalizeId(String? value) {
+    final normalized = value?.trim();
+
+    if (normalized == null || normalized.isEmpty) {
+      return null;
+    }
+
+    return normalized;
   }
 
   static double _safePositive(double value) {

@@ -5,6 +5,8 @@ import '../models/invoice_model.dart';
 import '../services/storage/hive_service.dart';
 
 class InvoiceRepository {
+  static const double _moneyTolerance = 0.000001;
+
   Box<InvoiceModel> get _box => HiveService.getInvoiceBox();
 
   List<InvoiceModel> getInvoices() {
@@ -136,6 +138,7 @@ class InvoiceRepository {
 
     item.normalizeBasicData();
     item.clearLegacyPaymentState();
+    _prepareNewItemId(invoice: invoice, item: item);
 
     final effectivePaidAmount = invoice.paidTotal;
 
@@ -174,6 +177,11 @@ class InvoiceRepository {
     if (!_isValidItemIndex(invoice, index)) return null;
     if (!item.price.isFinite || item.price <= 0) return null;
 
+    final existingItem = invoice.items[index];
+
+    existingItem.ensureStableId();
+
+    item.id = existingItem.id;
     item.normalizeBasicData();
     item.clearLegacyPaymentState();
 
@@ -185,7 +193,10 @@ class InvoiceRepository {
 
     final nextTotal = _calculateTotal(nextItems);
 
-    if (effectivePaidAmount > nextTotal) {
+    if (_isPaidAmountAboveTotal(
+      paidAmount: effectivePaidAmount,
+      total: nextTotal,
+    )) {
       return null;
     }
 
@@ -218,17 +229,78 @@ class InvoiceRepository {
     final invoice = _box.get(invoiceKey);
 
     if (invoice == null) return null;
-    if (invoice.isPaymentCompleted) return null;
     if (!_isValidItemIndex(invoice, index)) return null;
+
+    final itemId = invoice.items[index].id.trim();
+
+    if (itemId.isEmpty) return null;
+
+    return _deleteItemsFromInvoice(invoice: invoice, itemIds: <String>{itemId});
+  }
+
+  Future<InvoiceModel?> deleteItems({
+    required dynamic invoiceKey,
+    required Set<String> itemIds,
+  }) async {
+    if (invoiceKey == null) return null;
+
+    final normalizedItemIds = itemIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    if (normalizedItemIds.isEmpty) return null;
+
+    final invoice = _box.get(invoiceKey);
+
+    if (invoice == null) return null;
+
+    return _deleteItemsFromInvoice(
+      invoice: invoice,
+      itemIds: normalizedItemIds,
+    );
+  }
+
+  Future<InvoiceModel?> _deleteItemsFromInvoice({
+    required InvoiceModel invoice,
+    required Set<String> itemIds,
+  }) async {
+    if (invoice.isPaymentCompleted) return null;
+    if (itemIds.isEmpty) return null;
 
     final effectivePaidAmount = invoice.paidTotal;
 
-    final nextItems = List<InvoiceItemModel>.of(invoice.items, growable: true)
-      ..removeAt(index);
+    final nextItems = <InvoiceItemModel>[];
 
-    final nextTotal = _calculateTotal(nextItems);
+    var nextTotal = 0.0;
+    var removedCount = 0;
 
-    if (effectivePaidAmount > nextTotal) {
+    for (final item in invoice.items) {
+      final itemId = item.id.trim();
+
+      if (itemIds.contains(itemId)) {
+        removedCount++;
+        continue;
+      }
+
+      nextItems.add(item);
+      nextTotal += item.price;
+    }
+
+    // Prevent partial or unexpected deletion.
+    //
+    // This also protects against:
+    // - stale selections;
+    // - missing IDs;
+    // - duplicated IDs.
+    if (removedCount != itemIds.length) {
+      return null;
+    }
+
+    if (_isPaidAmountAboveTotal(
+      paidAmount: effectivePaidAmount,
+      total: nextTotal,
+    )) {
       return null;
     }
 
@@ -239,6 +311,7 @@ class InvoiceRepository {
       invoice.items = nextItems;
       invoice.paidAmount = effectivePaidAmount;
 
+      // Only one Hive write for all selected items.
       await invoice.save();
 
       return invoice;
@@ -250,17 +323,28 @@ class InvoiceRepository {
     }
   }
 
-  Future<void> migrateLegacyPaymentsToInvoicePayments() async {
+  Future<void> migrateStoredInvoices() async {
     for (final invoice in _box.values) {
-      final oldPaidAmount = invoice.paidAmount;
+      final previousPaidAmount = invoice.paidAmount;
 
       invoice.normalizeBasicData();
       invoice.migrateLegacyPaymentToInvoicePaymentIfNeeded();
 
-      if (invoice.paidAmount != oldPaidAmount) {
+      final itemIdsChanged = _ensureUniqueItemIds(invoice);
+
+      final paymentChanged = invoice.paidAmount != previousPaidAmount;
+
+      if (itemIdsChanged || paymentChanged) {
         await invoice.save();
       }
     }
+  }
+
+  /// Temporary compatibility method.
+  ///
+  /// This can be removed after all callers use [migrateStoredInvoices].
+  Future<void> migrateLegacyPaymentsToInvoicePayments() {
+    return migrateStoredInvoices();
   }
 
   Future<void> compactInvoicesBox() {
@@ -279,6 +363,40 @@ class InvoiceRepository {
     }
 
     return 0;
+  }
+
+  static void _prepareNewItemId({
+    required InvoiceModel invoice,
+    required InvoiceItemModel item,
+  }) {
+    item.ensureStableId();
+
+    final existingIds = invoice.items
+        .map((existingItem) => existingItem.id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    while (existingIds.contains(item.id)) {
+      item.regenerateId();
+    }
+  }
+
+  static bool _ensureUniqueItemIds(InvoiceModel invoice) {
+    var didChange = false;
+    final usedIds = <String>{};
+
+    for (final item in invoice.items) {
+      if (item.ensureStableId()) {
+        didChange = true;
+      }
+
+      while (!usedIds.add(item.id)) {
+        item.regenerateId();
+        didChange = true;
+      }
+    }
+
+    return didChange;
   }
 
   static bool _isValidItemIndex(InvoiceModel invoice, int index) {
@@ -308,6 +426,13 @@ class InvoiceRepository {
     }
 
     return paidAmount;
+  }
+
+  static bool _isPaidAmountAboveTotal({
+    required double paidAmount,
+    required double total,
+  }) {
+    return paidAmount - total > _moneyTolerance;
   }
 }
 

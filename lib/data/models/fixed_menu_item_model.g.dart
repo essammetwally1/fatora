@@ -18,15 +18,10 @@ class FixedMenuItemModelAdapter extends TypeAdapter<FixedMenuItemModel> {
     };
     return FixedMenuItemModel(
       name: fields[0] as String,
-      price: _readDouble(fields[1]),
+      price: fields[1] == null ? 0.0 : fields[1] as double,
       createdAt: fields[2] as DateTime?,
       updatedAt: fields[3] as DateTime?,
     );
-  }
-
-  double _readDouble(dynamic value) {
-    if (value is num && value.isFinite) return value.toDouble();
-    return 0.0;
   }
 
   @override

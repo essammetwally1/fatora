@@ -17,31 +17,21 @@ class InvoiceItemModelAdapter extends TypeAdapter<InvoiceItemModel> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return InvoiceItemModel(
+      id: fields[7] == null ? '' : fields[7] as String?,
       date: fields[0] as DateTime?,
       deprecatedCustomerName: fields[1] as String?,
       itemName: fields[2] as String,
-      price: _readDouble(fields[3]),
+      price: fields[3] as double,
       note: fields[4] as String?,
       isPaid: fields[5] as bool,
-      paidAmount: _readNullableDouble(fields[6]),
+      paidAmount: fields[6] as double?,
     );
-  }
-
-  double _readDouble(dynamic value) {
-    if (value is num && value.isFinite) return value.toDouble();
-    return 0.0;
-  }
-
-  double? _readNullableDouble(dynamic value) {
-    if (value == null) return null;
-    if (value is num && value.isFinite) return value.toDouble();
-    return 0.0;
   }
 
   @override
   void write(BinaryWriter writer, InvoiceItemModel obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(8)
       ..writeByte(0)
       ..write(obj.date)
       ..writeByte(1)
@@ -55,7 +45,9 @@ class InvoiceItemModelAdapter extends TypeAdapter<InvoiceItemModel> {
       ..writeByte(5)
       ..write(obj.isPaid)
       ..writeByte(6)
-      ..write(obj.paidAmount);
+      ..write(obj.paidAmount)
+      ..writeByte(7)
+      ..write(obj.id);
   }
 
   @override

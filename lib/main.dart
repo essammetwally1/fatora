@@ -1,5 +1,6 @@
 import 'package:fatora/providers/fixed_menu_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
@@ -40,6 +41,8 @@ class FatoraApp extends StatelessWidget {
       child: Consumer<SettingsProvider>(
         builder: (context, settings, _) {
           return MaterialApp(
+            builder: FToastBuilder(),
+
             debugShowCheckedModeBanner: false,
             title: 'Fatora',
             theme: AppTheme.lightTheme,
