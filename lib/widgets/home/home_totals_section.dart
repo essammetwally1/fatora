@@ -1,6 +1,9 @@
 import 'package:fatora/data/models/invoices_totals.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/utils/formatters.dart';
+import '../../core/utils/responsive.dart';
+
 class HomeTotalsSection extends StatefulWidget {
   final InvoicesTotals totals;
 
@@ -27,8 +30,10 @@ class _HomeTotalsSectionState extends State<HomeTotalsSection> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final isVerySmall = width < 340;
-        final isSmall = width < 390;
+
+        // Uses the shared scale rather than this widget's own 340/390 numbers.
+        final isVerySmall = width < Responsive.compactBreakpoint;
+        final isSmall = width < 420;
 
         return Material(
           color: Colors.transparent,
@@ -232,7 +237,7 @@ class _MainTotalValue extends StatelessWidget {
           fit: BoxFit.scaleDown,
           alignment: AlignmentDirectional.centerStart,
           child: Text(
-            _formatMoney(total),
+            Formatters.formatMoneyCompact(total),
             textDirection: TextDirection.ltr,
             style: TextStyle(
               color: Colors.white,
@@ -341,14 +346,14 @@ class _ExpandedTotalsCards extends StatelessWidget {
     final paidCard = _AmountCard(
       title: 'المدفوع',
       subtitle: 'تم تحصيله',
-      value: _formatMoney(totals.paid),
+      value: Formatters.formatMoneyCompact(totals.paid),
       icon: Icons.check_circle_rounded,
     );
 
     final remainingCard = _AmountCard(
       title: 'المتبقي',
       subtitle: totals.hasRemaining ? 'لم يتم تحصيله' : 'لا يوجد متبقي',
-      value: _formatMoney(totals.remaining),
+      value: Formatters.formatMoneyCompact(totals.remaining),
       icon: totals.hasRemaining
           ? Icons.error_outline_rounded
           : Icons.verified_rounded,
@@ -471,24 +476,4 @@ class _IconBox extends StatelessWidget {
       child: Icon(icon, color: Colors.white, size: 16),
     );
   }
-}
-
-String _formatMoney(num value) {
-  final safeValue = value.isFinite ? value : 0;
-  final roundedValue = safeValue.round();
-
-  final raw = roundedValue.toString();
-  final buffer = StringBuffer();
-
-  for (int i = 0; i < raw.length; i++) {
-    final reversedIndex = raw.length - i;
-
-    buffer.write(raw[i]);
-
-    if (reversedIndex > 1 && reversedIndex % 3 == 1) {
-      buffer.write(',');
-    }
-  }
-
-  return '${buffer.toString()} ج.م';
 }

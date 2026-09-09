@@ -38,16 +38,34 @@ class FatoraApp extends StatelessWidget {
           create: (_) => FixedMenuProvider()..loadMenu(notify: false),
         ),
       ],
-      child: Consumer<SettingsProvider>(
-        builder: (context, settings, _) {
+      // Only the theme slice of SettingsProvider is watched, so unrelated
+      // settings changes cannot rebuild the whole app.
+      child: Selector<SettingsProvider, ThemeMode>(
+        selector: (_, settings) => settings.themeMode,
+        builder: (context, themeMode, _) {
           return MaterialApp(
-            builder: FToastBuilder(),
+            builder: (context, child) {
+              final toastHost = FToastBuilder()(context, child);
+
+              return Directionality(
+                // Applied once here instead of being re-wrapped inside every
+                // screen, sheet and dialog.
+                textDirection: TextDirection.rtl,
+                child: MediaQuery.withClampedTextScaling(
+                  // Guards the dense money/status rows against extreme system
+                  // font sizes without ignoring the user's preference.
+                  minScaleFactor: 0.85,
+                  maxScaleFactor: 1.4,
+                  child: toastHost,
+                ),
+              );
+            },
 
             debugShowCheckedModeBanner: false,
             title: 'Fatora',
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
-            themeMode: settings.themeMode,
+            themeMode: themeMode,
             home: const HomeScreen(),
           );
         },
@@ -61,3 +79,6 @@ class FatoraApp extends StatelessWidget {
 // flutter build apk --release
 // flutter build web --release
 // firebase deploy --only hosting
+
+
+// flutter build apk --split-per-abi

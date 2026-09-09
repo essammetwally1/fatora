@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/utils/app_toast.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/responsive.dart';
 import '../../data/models/fixed_menu_item_model.dart';
 import '../../providers/fixed_menu_provider.dart';
+import '../common/app_empty_state.dart';
 import 'fixed_menu_item_dialog.dart';
 
 class FixedMenuSheet {
@@ -15,11 +18,9 @@ class FixedMenuSheet {
       isScrollControlled: true,
       useSafeArea: true,
       enableDrag: true,
-      backgroundColor: Theme.of(context).cardColor,
-      clipBehavior: Clip.antiAlias,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      // Colour, radius and clipping now come from `bottomSheetTheme`.
+      // On tablets the sheet stops short of full width instead of spanning it.
+      constraints: const BoxConstraints(maxWidth: Responsive.maxSheetWidth),
       builder: (_) => const _FixedMenuSheetContent(),
     );
   }
@@ -103,9 +104,15 @@ class _FixedMenuSheetContent extends StatelessWidget {
               if (state.items.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _EmptyFixedMenuState(
-                    color: Theme.of(context).colorScheme.primary,
+                  child: AppEmptyState(
+                    icon: Icons.menu_book_outlined,
                     isLoading: state.isLoading,
+                    title: state.isLoading
+                        ? 'جاري تحميل القائمة'
+                        : 'لا توجد أصناف ثابتة بعد',
+                    message: state.isLoading
+                        ? null
+                        : 'اضغط “إضافة” لإنشاء أول صنف سريع.',
                   ),
                 )
               else
@@ -336,10 +343,12 @@ class _FixedMenuSheetContent extends StatelessWidget {
     );
   }
 
+  /// Uses the toast overlay rather than a `SnackBar`.
+  ///
+  /// A `SnackBar` raised from inside a modal bottom sheet is drawn by the
+  /// scaffold underneath it, so the user never saw these messages.
   void _showMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    AppToast.showError(context, message: message);
   }
 }
 
@@ -657,49 +666,6 @@ class _FixedMenuActionButton extends StatelessWidget {
           ),
         ),
         icon: Icon(icon, size: 19),
-      ),
-    );
-  }
-}
-
-class _EmptyFixedMenuState extends StatelessWidget {
-  final Color color;
-  final bool isLoading;
-
-  const _EmptyFixedMenuState({required this.color, required this.isLoading});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isLoading)
-              const CircularProgressIndicator()
-            else
-              Icon(Icons.menu, color: color.withValues(alpha: .65), size: 54),
-            const SizedBox(height: 10),
-            Text(
-              isLoading ? 'جاري تحميل القائمة' : 'لا توجد أصناف ثابتة بعد',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            if (!isLoading) ...[
-              const SizedBox(height: 5),
-              Text(
-                'اضغط إضافة لإنشاء أول صنف سريع.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall,
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }

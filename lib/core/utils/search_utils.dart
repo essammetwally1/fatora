@@ -15,13 +15,4 @@ class SearchUtils {
         .replaceAll('ة', 'ه')
         .replaceAll(_whitespaceRegex, ' ');
   }
-
-  static bool contains(String source, String query) {
-    final normalizedSource = normalize(source);
-    final normalizedQuery = normalize(query);
-
-    if (normalizedQuery.isEmpty) return true;
-
-    return normalizedSource.contains(normalizedQuery);
-  }
 }

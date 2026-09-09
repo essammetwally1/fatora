@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../../core/utils/number_input_utils.dart';
 import '../../data/models/fixed_menu_item_model.dart';
 
 class FixedMenuItemInput {
@@ -105,7 +105,7 @@ class _FixedMenuItemDialogState extends State<FixedMenuItemDialog> {
                 textInputAction: TextInputAction.done,
                 textDirection: TextDirection.ltr,
                 textAlign: TextAlign.right,
-                inputFormatters: const [_PositiveDecimalTextInputFormatter()],
+                inputFormatters: const [PositiveDecimalTextInputFormatter()],
                 decoration: const InputDecoration(
                   labelText: 'السعر',
                   prefixIcon: Icon(Icons.payments_outlined),
@@ -196,91 +196,7 @@ class _FixedMenuItemDialogState extends State<FixedMenuItemDialog> {
     ).pop(FixedMenuItemInput(name: cleanName, price: price));
   }
 
-  double? _parsePrice(String value) {
-    var clean = value.trim().replaceAll('٫', '.').replaceAll(',', '.');
+  double? _parsePrice(String value) => NumberInputUtils.parseAmount(value);
 
-    clean = _normalizeDigits(clean);
-
-    if (clean.isEmpty || clean == '.') {
-      return null;
-    }
-
-    final parsed = double.tryParse(clean);
-
-    if (parsed == null || !parsed.isFinite) {
-      return null;
-    }
-
-    return parsed;
-  }
-
-  String _cleanNumber(double value) {
-    if (!value.isFinite || value <= 0) {
-      return '';
-    }
-
-    if (value == value.truncateToDouble()) {
-      return value.toInt().toString();
-    }
-
-    return value
-        .toStringAsFixed(2)
-        .replaceFirst(RegExp(r'0+$'), '')
-        .replaceFirst(RegExp(r'\.$'), '');
-  }
-
-  String _normalizeDigits(String value) {
-    const replacements = <String, String>{
-      '٠': '0',
-      '١': '1',
-      '٢': '2',
-      '٣': '3',
-      '٤': '4',
-      '٥': '5',
-      '٦': '6',
-      '٧': '7',
-      '٨': '8',
-      '٩': '9',
-      '۰': '0',
-      '۱': '1',
-      '۲': '2',
-      '۳': '3',
-      '۴': '4',
-      '۵': '5',
-      '۶': '6',
-      '۷': '7',
-      '۸': '8',
-      '۹': '9',
-    };
-
-    var result = value;
-
-    for (final entry in replacements.entries) {
-      result = result.replaceAll(entry.key, entry.value);
-    }
-
-    return result;
-  }
-}
-
-class _PositiveDecimalTextInputFormatter extends TextInputFormatter {
-  const _PositiveDecimalTextInputFormatter();
-
-  static final RegExp _validInput = RegExp(
-    r'^[0-9٠-٩۰-۹]*([.,٫][0-9٠-٩۰-۹]{0,2})?$',
-  );
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final text = newValue.text.trim();
-
-    if (text.isEmpty || _validInput.hasMatch(text)) {
-      return newValue;
-    }
-
-    return oldValue;
-  }
+  String _cleanNumber(double value) => NumberInputUtils.formatForInput(value);
 }

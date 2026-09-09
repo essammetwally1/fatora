@@ -121,15 +121,26 @@ class InvoiceProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> migrateStoredInvoices() async {
+  /// One-time startup routine: normalise legacy Hive records, then load.
+  ///
+  /// Migration back-fills stable item IDs and promotes old per-item payments
+  /// to the invoice-level `paidAmount`. Without it, items saved by older
+  /// versions keep an empty ID and cannot be selected or deleted.
+  ///
+  /// Loading is deliberately outside the mutation: if migration fails on one
+  /// bad record the user still gets their invoice list rather than a blank
+  /// screen. The failure is recorded and logged.
+  Future<void> bootstrap() async {
     await _runMutation(
       failureMessage: 'تعذر تحديث البيانات القديمة',
       operation: () async {
         await _repository.migrateStoredInvoices();
 
-        return loadInvoices(notify: false);
+        return true;
       },
     );
+
+    loadInvoices();
   }
 
   Future<bool> createInvoice(String title) async {
@@ -210,6 +221,11 @@ class InvoiceProvider extends ChangeNotifier {
     );
   }
 
+  /// Sets the paid amount to an absolute value.
+  ///
+  /// Expressed as a delta so that the move is recorded in the invoice's
+  /// payment history like any other; setting the field directly would leave
+  /// money on the invoice that no dated entry accounts for.
   Future<bool> updateInvoicePaidAmount({
     required InvoiceModel invoice,
     required double paidAmount,
@@ -233,26 +249,13 @@ class InvoiceProvider extends ChangeNotifier {
       total: currentInvoice.total,
     );
 
-    if (currentInvoice.paidTotal == cleanPaidAmount) {
+    final delta = cleanPaidAmount - currentInvoice.paidTotal;
+
+    if (delta.abs() <= _moneyTolerance) {
       return true;
     }
 
-    return _runMutation(
-      failureMessage: 'تعذر تحديث المبلغ المدفوع',
-      operation: () async {
-        final updatedInvoice = await _repository.updateInvoicePaidAmount(
-          invoiceKey: invoiceKey,
-          paidAmount: cleanPaidAmount,
-        );
-
-        if (updatedInvoice == null) {
-          _setOperationError('لم تعد الفاتورة موجودة');
-          return false;
-        }
-
-        return _replaceInvoiceInMemory(updatedInvoice);
-      },
-    );
+    return applyInvoicePaidDelta(invoice: currentInvoice, deltaAmount: delta);
   }
 
   Future<bool> applyInvoicePaidDelta({
@@ -278,16 +281,19 @@ class InvoiceProvider extends ChangeNotifier {
       total: currentInvoice.total,
     );
 
-    if (currentInvoice.paidTotal == nextPaidAmount) {
+    if ((nextPaidAmount - currentInvoice.paidTotal).abs() <= _moneyTolerance) {
       return true;
     }
 
     return _runMutation(
       failureMessage: 'تعذر حفظ عملية الدفع',
       operation: () async {
-        final updatedInvoice = await _repository.updateInvoicePaidAmount(
+        // The repository re-clamps against freshly read storage and records
+        // the movement that actually landed, so the printed history always
+        // reconciles with the stored total.
+        final updatedInvoice = await _repository.applyPaidDelta(
           invoiceKey: invoiceKey,
-          paidAmount: nextPaidAmount,
+          deltaAmount: deltaAmount,
         );
 
         if (updatedInvoice == null) {
@@ -596,8 +602,12 @@ class InvoiceProvider extends ChangeNotifier {
     final grouped = <InvoiceMonthKey, List<InvoiceModel>>{};
 
     for (final invoice in _invoices) {
+      // Undated invoices go to their own bucket, never to the current month.
+      // Counting them as this month's business overstated current revenue by
+      // exactly the amount every historical month was understated, and the
+      // distortion followed the calendar forward at each rollover.
       final month = invoice.isLegacyDate
-          ? _currentMonth
+          ? const InvoiceMonthKey.legacy()
           : InvoiceMonthKey.fromDate(invoice.listDate);
 
       grouped.putIfAbsent(month, () => <InvoiceModel>[]).add(invoice);

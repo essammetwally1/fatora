@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:fatora/core/utils/app_toast.dart';
 import 'package:fatora/data/models/invoice_model.dart';
 import 'package:fatora/data/services/pdf/pdf_service.dart';
 import 'package:flutter/material.dart';
@@ -46,18 +47,11 @@ class _InvoicePdfScreenState extends State<InvoicePdfScreen> {
 
       if (!mounted) return;
 
-      _showSnackBar(
-        icon: Icons.check_circle_rounded,
-        message: 'تم حفظ الملف: ${result.fileName}',
-      );
+      _showMessage('تم حفظ الملف: ${result.fileName}');
     } catch (_) {
       if (!mounted) return;
 
-      _showSnackBar(
-        icon: Icons.error_rounded,
-        message: 'حدث خطأ أثناء حفظ ملف PDF',
-        isError: true,
-      );
+      _showMessage('حدث خطأ أثناء حفظ ملف PDF', isError: true);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -75,18 +69,11 @@ class _InvoicePdfScreenState extends State<InvoicePdfScreen> {
 
       if (!mounted) return;
 
-      _showSnackBar(
-        icon: Icons.ios_share_rounded,
-        message: 'تم تجهيز الفاتورة للمشاركة بنجاح',
-      );
+      _showMessage('تم تجهيز الفاتورة للمشاركة بنجاح');
     } catch (_) {
       if (!mounted) return;
 
-      _showSnackBar(
-        icon: Icons.error_rounded,
-        message: 'حدث خطأ أثناء مشاركة ملف PDF',
-        isError: true,
-      );
+      _showMessage('حدث خطأ أثناء مشاركة ملف PDF', isError: true);
     } finally {
       if (mounted) setState(() => _isSharing = false);
     }
@@ -104,15 +91,11 @@ class _InvoicePdfScreenState extends State<InvoicePdfScreen> {
 
       if (!mounted) return;
 
-      _showSnackBar(icon: Icons.print_rounded, message: 'تم فتح نافذة الطباعة');
+      _showMessage('تم فتح نافذة الطباعة');
     } catch (_) {
       if (!mounted) return;
 
-      _showSnackBar(
-        icon: Icons.error_rounded,
-        message: 'حدث خطأ أثناء الطباعة',
-        isError: true,
-      );
+      _showMessage('حدث خطأ أثناء الطباعة', isError: true);
     } finally {
       if (mounted) setState(() => _isPrinting = false);
     }
@@ -124,21 +107,14 @@ class _InvoicePdfScreenState extends State<InvoicePdfScreen> {
     });
   }
 
-  void _showSnackBar({
-    required IconData icon,
-    required String message,
-    bool isError = false,
-  }) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        _PdfSnackBar.build(
-          context: context,
-          icon: icon,
-          message: message,
-          isError: isError,
-        ),
-      );
+  void _showMessage(String message, {bool isError = false}) {
+    if (!mounted) return;
+
+    if (isError) {
+      AppToast.showError(context, message: message);
+    } else {
+      AppToast.showSuccess(context, message: message);
+    }
   }
 
   @override
@@ -348,53 +324,6 @@ class _PdfErrorView extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PdfSnackBar {
-  const _PdfSnackBar._();
-
-  static SnackBar build({
-    required BuildContext context,
-    required IconData icon,
-    required String message,
-    bool isError = false,
-  }) {
-    final theme = Theme.of(context);
-
-    final backgroundColor = isError
-        ? theme.colorScheme.error
-        : theme.colorScheme.primary;
-
-    final foregroundColor = isError
-        ? theme.colorScheme.onError
-        : theme.colorScheme.onPrimary;
-
-    return SnackBar(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: backgroundColor,
-      elevation: 0,
-      margin: const EdgeInsets.all(14),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      content: Directionality(
-        textDirection: TextDirection.rtl,
-        child: Row(
-          children: [
-            Icon(icon, color: foregroundColor),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                message,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: foregroundColor,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

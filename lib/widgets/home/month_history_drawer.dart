@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../app/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/invoice_month_key.dart';
 import '../../data/models/invoice_month_snapshot.dart';
+import '../common/app_empty_state.dart';
 
 class MonthHistoryDrawer extends StatelessWidget {
   final List<InvoiceMonthSnapshot> months;
@@ -35,7 +37,11 @@ class MonthHistoryDrawer extends StatelessWidget {
               if (months.isEmpty)
                 const SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _EmptyMonthsState(),
+                  child: AppEmptyState(
+                    icon: Icons.history_rounded,
+                    title: 'لا توجد فواتير محفوظة بعد',
+                    message: 'ستظهر شهور الفواتير هنا بمجرد إنشاء أول فاتورة.',
+                  ),
                 )
               else
                 SliverPadding(
@@ -113,7 +119,7 @@ class _DrawerHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'اختر الشهر المطلوب',
+                  'اختر الفترة المطلوبة',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -153,6 +159,7 @@ class _MonthCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final statusColors = context.statusColors;
     final totals = snapshot.totals;
 
     return Material(
@@ -224,12 +231,14 @@ class _MonthCard extends StatelessWidget {
               _MoneyLine(
                 label: 'المدفوع',
                 value: totals.paid,
-                color: Colors.green,
+                color: statusColors.success,
               ),
               _MoneyLine(
                 label: 'المتبقي',
                 value: totals.remaining,
-                color: totals.remaining > 0 ? colorScheme.error : Colors.green,
+                color: totals.remaining > 0
+                    ? colorScheme.error
+                    : statusColors.success,
               ),
             ],
           ),
@@ -299,36 +308,6 @@ class _Badge extends StatelessWidget {
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           color: color,
           fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyMonthsState extends StatelessWidget {
-  const _EmptyMonthsState();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsetsDirectional.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.history_rounded, size: 56, color: colorScheme.primary),
-            const SizedBox(height: 14),
-            Text(
-              'لا توجد فواتير محفوظة بعد',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
         ),
       ),
     );

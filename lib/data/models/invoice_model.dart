@@ -1,12 +1,20 @@
 import 'package:hive/hive.dart';
 
 import 'invoice_item_model.dart';
+import 'invoice_payment_entry_model.dart';
 
 part 'invoice_model.g.dart';
 
 @HiveType(typeId: 1)
 class InvoiceModel extends HiveObject {
   static final DateTime legacyCreatedAt = DateTime(2000, 1, 1);
+
+  /// Amounts closer together than this are the same amount.
+  ///
+  /// Money is stored as `double`, so a chain of additions and subtractions
+  /// leaves dust like `1e-13`. Comparing against zero without a tolerance made
+  /// that dust look like an unexplained balance.
+  static const double _moneyTolerance = 0.000001;
 
   @HiveField(0)
   String title;
@@ -24,14 +32,29 @@ class InvoiceModel extends HiveObject {
   @HiveField(3)
   DateTime? createdAt;
 
+  /// Dated payments and returns, oldest first.
+  ///
+  /// Added after release, so every invoice stored by an older version arrives
+  /// with `null` here and is defaulted to an empty list. An empty history does
+  /// not mean nothing was paid — see [unrecordedPaidAmount], which reports the
+  /// part of [paidTotal] that predates this field rather than pretending it
+  /// was never paid or inventing a date for it.
+  @HiveField(4, defaultValue: <InvoicePaymentEntryModel>[])
+  List<InvoicePaymentEntryModel> payments;
+
   InvoiceModel({
     required String title,
     required List<InvoiceItemModel> items,
     double paidAmount = 0.0,
     this.createdAt,
+    List<InvoicePaymentEntryModel>? payments,
   }) : title = title.trim(),
        items = List<InvoiceItemModel>.of(items, growable: true),
-       paidAmount = _safePositive(paidAmount) {
+       paidAmount = _safePositive(paidAmount),
+       payments = List<InvoicePaymentEntryModel>.of(
+         payments ?? const <InvoicePaymentEntryModel>[],
+         growable: true,
+       ) {
     normalizeBasicData();
   }
 
@@ -82,6 +105,74 @@ class InvoiceModel extends HiveObject {
 
   bool get canEditItems => !isPaymentCompleted;
 
+  /// Signed sum of every recorded movement.
+  double get recordedPaymentsNet {
+    var value = 0.0;
+
+    for (final payment in payments) {
+      value += payment.signedAmount;
+    }
+
+    return value;
+  }
+
+  double get recordedPaymentsTotal {
+    var value = 0.0;
+
+    for (final payment in payments) {
+      if (payment.isPayment) value += payment.amount;
+    }
+
+    return value;
+  }
+
+  double get recordedReturnsTotal {
+    var value = 0.0;
+
+    for (final payment in payments) {
+      if (payment.isReturn) value += payment.amount;
+    }
+
+    return value;
+  }
+
+  /// The part of [paidTotal] that no recorded entry accounts for.
+  ///
+  /// Positive on an invoice paid before payment history existed, and on one
+  /// whose payment was promoted from the old per-item fields. Negative only if
+  /// [paidTotal] was clamped down below what the entries add up to. Reporting
+  /// it lets the printed breakdown always sum to [paidTotal] without either
+  /// dropping money or stamping a made-up date on it.
+  double get unrecordedPaidAmount {
+    final difference = paidTotal - recordedPaymentsNet;
+
+    return difference.abs() <= _moneyTolerance ? 0.0 : difference;
+  }
+
+  bool get hasPaymentHistory => payments.isNotEmpty;
+
+  /// Recorded movements, oldest first.
+  ///
+  /// Entries are appended in order, so this is normally already sorted; the
+  /// copy exists so callers cannot mutate the stored list, and the sort keeps
+  /// it correct if an entry was ever back-dated.
+  List<InvoicePaymentEntryModel> get paymentsOldestFirst {
+    if (payments.length < 2) {
+      return List<InvoicePaymentEntryModel>.unmodifiable(payments);
+    }
+
+    final sorted = List<InvoicePaymentEntryModel>.of(payments)
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+    return List<InvoicePaymentEntryModel>.unmodifiable(sorted);
+  }
+
+  List<InvoicePaymentEntryModel> get paymentsNewestFirst {
+    return List<InvoicePaymentEntryModel>.unmodifiable(
+      paymentsOldestFirst.reversed,
+    );
+  }
+
   String get displayTitle {
     final value = title.trim();
     return value.isEmpty ? 'فاتورة بدون عنوان' : value;
@@ -93,6 +184,10 @@ class InvoiceModel extends HiveObject {
 
     for (final item in items) {
       item.normalizeBasicData();
+    }
+
+    for (final payment in payments) {
+      payment.normalize();
     }
   }
 
@@ -108,11 +203,11 @@ class InvoiceModel extends HiveObject {
     }
   }
 
-  void clearLegacyItemPayments() {
-    for (final item in items) {
-      item.clearLegacyPaymentState();
-    }
-  }
+  // Deliberately no `clearLegacyItemPayments()`. Wiping the per-item
+  // `isPaid`/`paidAmount` of an old invoice destroys the only record of which
+  // items it was paid for, and buys nothing: `paidTotal` already ignores those
+  // fields once `paidAmount` is positive. See `migrateLegacyPaymentToInvoice-
+  // PaymentIfNeeded`, which promotes without erasing.
 
   static double _safePositive(double value) {
     if (value.isNaN || value.isInfinite || value < 0) return 0.0;

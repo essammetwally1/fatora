@@ -2,6 +2,7 @@ import 'package:hive/hive.dart';
 
 import '../models/invoice_item_model.dart';
 import '../models/invoice_model.dart';
+import '../models/invoice_payment_entry_model.dart';
 import '../services/storage/hive_service.dart';
 
 class InvoiceRepository {
@@ -58,45 +59,70 @@ class InvoiceRepository {
     }
   }
 
-  Future<InvoiceModel?> updateInvoicePaidAmount({
+  /// Moves the paid amount by [deltaAmount] and records what actually moved.
+  ///
+  /// Positive is a payment, negative a return. The delta is applied to
+  /// `paidTotal` rather than to the raw `paidAmount` field, so a legacy
+  /// invoice whose payment still lives on its items is topped up from its real
+  /// balance instead of from zero.
+  ///
+  /// The entry stores the *clamped* movement, never the amount the caller
+  /// asked for: paying 500 against a 300 remaining balance records 300, so the
+  /// history always adds up to the stored total.
+  Future<InvoiceModel?> applyPaidDelta({
     required dynamic invoiceKey,
-    required double paidAmount,
+    required double deltaAmount,
+    DateTime? occurredAt,
   }) async {
     if (invoiceKey == null) return null;
-    if (!paidAmount.isFinite) return null;
+    if (!deltaAmount.isFinite || deltaAmount == 0) return null;
 
     final invoice = _box.get(invoiceKey);
     if (invoice == null) return null;
 
-    final previousPaidAmount = invoice.paidAmount;
+    final currentPaid = invoice.paidTotal;
 
-    final legacySnapshots = invoice.items
-        .map(
-          (item) => _LegacyPaymentSnapshot(
-            item: item,
-            isPaid: item.isPaid,
-            paidAmount: item.paidAmount,
-          ),
-        )
-        .toList(growable: false);
+    final nextPaidAmount = _clampPaidAmount(
+      paidAmount: currentPaid + deltaAmount,
+      total: invoice.total,
+    );
+
+    final appliedDelta = nextPaidAmount - currentPaid;
+
+    // Nothing moved (paying zero against a full invoice, or dust). Recording a
+    // zero-value entry would clutter the printed receipt for no information.
+    if (appliedDelta.abs() <= _moneyTolerance) {
+      return invoice;
+    }
+
+    final entry = InvoicePaymentEntryModel(
+      amount: appliedDelta.abs(),
+      isReturn: appliedDelta < 0,
+      createdAt: occurredAt ?? DateTime.now(),
+    );
+
+    _prepareNewPaymentId(invoice: invoice, entry: entry);
+
+    final previousPaidAmount = invoice.paidAmount;
+    final previousPayments = invoice.payments;
+
+    final nextPayments = List<InvoicePaymentEntryModel>.of(
+      invoice.payments,
+      growable: true,
+    )..add(entry);
 
     try {
-      invoice.paidAmount = _clampPaidAmount(
-        paidAmount: paidAmount,
-        total: invoice.total,
-      );
-
-      invoice.clearLegacyItemPayments();
+      // Also promotes any legacy item-level payment onto the invoice, because
+      // `currentPaid` was read from `paidTotal`.
+      invoice.paidAmount = nextPaidAmount;
+      invoice.payments = nextPayments;
 
       await invoice.save();
 
       return invoice;
     } catch (_) {
       invoice.paidAmount = previousPaidAmount;
-
-      for (final snapshot in legacySnapshots) {
-        snapshot.restore();
-      }
+      invoice.payments = previousPayments;
 
       rethrow;
     }
@@ -183,7 +209,15 @@ class InvoiceRepository {
 
     item.id = existingItem.id;
     item.normalizeBasicData();
-    item.clearLegacyPaymentState();
+
+    // Editing an item must not erase its legacy payment record. The sheet
+    // always builds the replacement with a zeroed payment state, so carry the
+    // stored one across. This is total-neutral: `paidAmount` is set to the
+    // pre-edit `paidTotal` below, after which `paidTotal` reads the invoice
+    // level and ignores these fields.
+    item.isPaid = existingItem.isPaid;
+    item.paidAmount = existingItem.paidAmount;
+    item.normalizeLegacyPaymentState();
 
     final effectivePaidAmount = invoice.paidTotal;
 
@@ -324,27 +358,32 @@ class InvoiceRepository {
   }
 
   Future<void> migrateStoredInvoices() async {
-    for (final invoice in _box.values) {
+    // `Box.values` is a lazy view over Hive's keystore, and this loop awaits a
+    // write inside it. Overwriting an existing key neither adds nor removes
+    // keys, so iterating it directly happens to be safe — but this routine
+    // touches every invoice the user owns, at startup, so it iterates a
+    // snapshot of the keys instead of relying on that.
+    final keys = _box.keys.toList(growable: false);
+
+    for (final key in keys) {
+      final invoice = _box.get(key);
+
+      if (invoice == null) continue;
+
       final previousPaidAmount = invoice.paidAmount;
 
       invoice.normalizeBasicData();
       invoice.migrateLegacyPaymentToInvoicePaymentIfNeeded();
 
       final itemIdsChanged = _ensureUniqueItemIds(invoice);
+      final paymentIdsChanged = _ensureUniquePaymentIds(invoice);
 
       final paymentChanged = invoice.paidAmount != previousPaidAmount;
 
-      if (itemIdsChanged || paymentChanged) {
+      if (itemIdsChanged || paymentIdsChanged || paymentChanged) {
         await invoice.save();
       }
     }
-  }
-
-  /// Temporary compatibility method.
-  ///
-  /// This can be removed after all callers use [migrateStoredInvoices].
-  Future<void> migrateLegacyPaymentsToInvoicePayments() {
-    return migrateStoredInvoices();
   }
 
   Future<void> compactInvoicesBox() {
@@ -379,6 +418,40 @@ class InvoiceRepository {
     while (existingIds.contains(item.id)) {
       item.regenerateId();
     }
+  }
+
+  static void _prepareNewPaymentId({
+    required InvoiceModel invoice,
+    required InvoicePaymentEntryModel entry,
+  }) {
+    entry.ensureStableId();
+
+    final existingIds = invoice.payments
+        .map((existingEntry) => existingEntry.id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    while (existingIds.contains(entry.id)) {
+      entry.regenerateId();
+    }
+  }
+
+  static bool _ensureUniquePaymentIds(InvoiceModel invoice) {
+    var didChange = false;
+    final usedIds = <String>{};
+
+    for (final entry in invoice.payments) {
+      if (entry.ensureStableId()) {
+        didChange = true;
+      }
+
+      while (!usedIds.add(entry.id)) {
+        entry.regenerateId();
+        didChange = true;
+      }
+    }
+
+    return didChange;
   }
 
   static bool _ensureUniqueItemIds(InvoiceModel invoice) {
@@ -433,22 +506,5 @@ class InvoiceRepository {
     required double total,
   }) {
     return paidAmount - total > _moneyTolerance;
-  }
-}
-
-class _LegacyPaymentSnapshot {
-  final InvoiceItemModel item;
-  final bool isPaid;
-  final double paidAmount;
-
-  const _LegacyPaymentSnapshot({
-    required this.item,
-    required this.isPaid,
-    required this.paidAmount,
-  });
-
-  void restore() {
-    item.isPaid = isPaid;
-    item.paidAmount = paidAmount;
   }
 }

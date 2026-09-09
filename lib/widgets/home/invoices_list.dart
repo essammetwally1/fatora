@@ -3,10 +3,12 @@ import 'package:fatora/widgets/home/invoice_day_header.dart';
 import 'package:fatora/widgets/home/invoice_pdf_actions_sheet.dart';
 import 'package:flutter/material.dart';
 
+import '../../app/app_theme.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/responsive.dart';
 import '../../data/models/invoice_model.dart';
 import '../../screens/invoice_details_screen.dart';
-import '../nosearch_result_state.dart';
+import '../common/app_empty_state.dart';
 import 'invoices_section_header.dart';
 
 class InvoicesList extends StatefulWidget {
@@ -59,10 +61,19 @@ class _InvoicesListState extends State<InvoicesList> {
       return _buildEmptyState(context);
     }
 
+    final horizontalPadding = Responsive.horizontalPadding(
+      MediaQuery.sizeOf(context).width,
+    );
+
     return ListView.separated(
       controller: widget.scrollController,
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
+      padding: EdgeInsets.fromLTRB(
+        horizontalPadding,
+        AppSpacing.sm,
+        horizontalPadding,
+        AppSpacing.fabScrollInset,
+      ),
 
       // Invoice cards do not require off-screen state retention.
       addAutomaticKeepAlives: false,
@@ -119,8 +130,6 @@ class _InvoicesListState extends State<InvoicesList> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     // Keep the controller attached even when no invoices are visible.
     // This lets HomeScreen reset the scroll position and hide its
     // scroll-to-top button correctly.
@@ -130,14 +139,17 @@ class _InvoicesListState extends State<InvoicesList> {
       slivers: [
         SliverFillRemaining(
           hasScrollBody: false,
-          child: NoSearchResultsState(
-            color: colorScheme.primary,
+          child: AppEmptyState(
+            icon: widget.hasSearchQuery
+                ? Icons.search_off_rounded
+                : Icons.receipt_long_outlined,
             title: widget.hasSearchQuery
                 ? 'لا توجد فواتير مطابقة'
                 : 'لا توجد فواتير بعد',
             message: widget.hasSearchQuery
-                ? 'جرّب البحث باسم فاتورة مختلف'
-                : 'ابدأ بإضافة أول فاتورة',
+                ? 'جرّب البحث باسم فاتورة مختلف، أو امسح البحث لعرض كل الفواتير.'
+                : 'ابدأ بإضافة أول فاتورة لهذا الشهر.',
+            bottomInset: 72,
           ),
         ),
       ],

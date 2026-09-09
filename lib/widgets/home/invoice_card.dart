@@ -3,6 +3,7 @@ import 'package:fatora/widgets/pdf_action_button.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/utils/formatters.dart';
+import '../../core/utils/responsive.dart';
 import '../../data/models/invoice_model.dart';
 
 class InvoiceCard extends StatelessWidget {
@@ -26,7 +27,10 @@ class InvoiceCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final invoiceStatus = _InvoiceStatus.fromInvoice(invoice);
+    final invoiceStatus = _InvoiceStatus.fromInvoice(
+      invoice,
+      context.statusColors,
+    );
 
     final invoiceTitle = invoice.title.trim().isEmpty
         ? 'فاتورة بدون عنوان'
@@ -74,31 +78,47 @@ class InvoiceCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           onLongPress: onLongPress,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _InvoiceIconBadge(status: invoiceStatus, isDark: isDark),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _InvoiceMainInfo(
-                    title: invoiceTitle,
-                    titleColor: titleColor,
-                    status: invoiceStatus,
-                    isDark: isDark,
-                  ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // On narrow phones the badge is dropped and the action column
+              // tightened, so the title keeps a usable share of the row
+              // instead of being squeezed to two or three characters.
+              final isCompact =
+                  constraints.maxWidth < Responsive.compactBreakpoint;
+
+              return Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isCompact ? AppSpacing.sm : AppSpacing.md,
+                  vertical: 11,
                 ),
-                const SizedBox(width: 10),
-                _InvoiceActionsAndTotal(
-                  total: invoice.total,
-                  totalBackgroundColor: totalBackgroundColor,
-                  isDark: isDark,
-                  onExport: onExport,
-                  onEdit: onEdit,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (!isCompact) ...[
+                      _InvoiceIconBadge(status: invoiceStatus, isDark: isDark),
+                      const SizedBox(width: AppSpacing.sm),
+                    ],
+                    Expanded(
+                      child: _InvoiceMainInfo(
+                        title: invoiceTitle,
+                        titleColor: titleColor,
+                        status: invoiceStatus,
+                        isDark: isDark,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    _InvoiceActionsAndTotal(
+                      width: isCompact ? 92 : 110,
+                      total: invoice.total,
+                      totalBackgroundColor: totalBackgroundColor,
+                      isDark: isDark,
+                      onExport: onExport,
+                      onEdit: onEdit,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -190,6 +210,7 @@ class _InvoiceMainInfo extends StatelessWidget {
 }
 
 class _InvoiceActionsAndTotal extends StatelessWidget {
+  final double width;
   final double total;
   final Color totalBackgroundColor;
   final bool isDark;
@@ -197,6 +218,7 @@ class _InvoiceActionsAndTotal extends StatelessWidget {
   final VoidCallback onEdit;
 
   const _InvoiceActionsAndTotal({
+    required this.width,
     required this.total,
     required this.totalBackgroundColor,
     required this.isDark,
@@ -209,7 +231,7 @@ class _InvoiceActionsAndTotal extends StatelessWidget {
     final theme = Theme.of(context);
 
     return SizedBox(
-      width: 110,
+      width: width,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -344,8 +366,13 @@ class _InvoiceStatus {
     required this.iconColor,
   });
 
-  factory _InvoiceStatus.fromInvoice(InvoiceModel invoice) {
-    if (invoice.items.isEmpty) {
+  factory _InvoiceStatus.fromInvoice(
+    InvoiceModel invoice,
+    AppStatusColors statusColors,
+  ) {
+    // No items, or items that all cost nothing: there is no payment to track
+    // yet, so "unpaid / 0.00 remaining" would be misleading.
+    if (invoice.items.isEmpty || invoice.total <= 0) {
       return const _InvoiceStatus(
         text: 'جديدة',
         remainingText: '',
@@ -358,14 +385,14 @@ class _InvoiceStatus {
 
     final remaining = invoice.unpaidTotal;
 
-    if (remaining <= 0 && invoice.total > 0) {
-      return const _InvoiceStatus(
+    if (remaining <= 0) {
+      return _InvoiceStatus(
         text: 'مكتملة',
         remainingText: '',
         icon: Icons.check_circle_outline_rounded,
         badgeIcon: Icons.receipt_long_rounded,
-        color: AppTheme.green,
-        iconColor: AppTheme.green,
+        color: statusColors.success,
+        iconColor: statusColors.success,
       );
     }
 
@@ -374,8 +401,8 @@ class _InvoiceStatus {
       remainingText: 'متبقي ${Formatters.formatMoney(remaining)}',
       icon: Icons.error_outline_rounded,
       badgeIcon: Icons.receipt_long_rounded,
-      color: AppTheme.red,
-      iconColor: AppTheme.red,
+      color: statusColors.danger,
+      iconColor: statusColors.danger,
     );
   }
 }

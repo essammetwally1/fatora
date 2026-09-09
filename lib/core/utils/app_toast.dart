@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
+import '../../app/app_theme.dart';
+
 enum AppToastType { success, error, info }
 
 class AppToast {
@@ -69,9 +71,11 @@ class _AppToastContent extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final foregroundColor = _foregroundColor(colorScheme);
-    final backgroundColor = _backgroundColor(colorScheme);
-    final borderColor = _borderColor(colorScheme);
+    final statusColors = context.statusColors;
+
+    final foregroundColor = _foregroundColor(colorScheme, statusColors);
+    final backgroundColor = _backgroundColor(colorScheme, statusColors);
+    final borderColor = _borderColor(colorScheme, statusColors);
     final icon = _icon;
 
     return Directionality(
@@ -142,25 +146,30 @@ class _AppToastContent extends StatelessWidget {
     };
   }
 
-  Color _foregroundColor(ColorScheme colorScheme) {
+  /// Success used fixed `Colors.green` shades, which stayed light-mode green on
+  /// a dark surface. It now follows the themed status palette like the rest.
+  Color _foregroundColor(ColorScheme colorScheme, AppStatusColors status) {
     return switch (type) {
-      AppToastType.success => Colors.green.shade800,
+      AppToastType.success => status.success,
       AppToastType.error => colorScheme.error,
       AppToastType.info => colorScheme.primary,
     };
   }
 
-  Color _backgroundColor(ColorScheme colorScheme) {
+  Color _backgroundColor(ColorScheme colorScheme, AppStatusColors status) {
     return switch (type) {
-      AppToastType.success => Colors.green.shade50,
+      AppToastType.success => Color.alphaBlend(
+        status.success.withValues(alpha: .12),
+        colorScheme.surface,
+      ),
       AppToastType.error => colorScheme.errorContainer,
       AppToastType.info => colorScheme.primaryContainer,
     };
   }
 
-  Color _borderColor(ColorScheme colorScheme) {
+  Color _borderColor(ColorScheme colorScheme, AppStatusColors status) {
     return switch (type) {
-      AppToastType.success => Colors.green.shade700.withValues(alpha: .25),
+      AppToastType.success => status.success.withValues(alpha: .30),
       AppToastType.error => colorScheme.error.withValues(alpha: .28),
       AppToastType.info => colorScheme.primary.withValues(alpha: .25),
     };

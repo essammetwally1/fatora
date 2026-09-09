@@ -1,46 +1,42 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'invoice_model.dart';
+part of 'invoice_payment_entry_model.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
 // **************************************************************************
 
-class InvoiceModelAdapter extends TypeAdapter<InvoiceModel> {
+class InvoicePaymentEntryModelAdapter
+    extends TypeAdapter<InvoicePaymentEntryModel> {
   @override
-  final int typeId = 1;
+  final int typeId = 3;
 
   @override
-  InvoiceModel read(BinaryReader reader) {
+  InvoicePaymentEntryModel read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return InvoiceModel(
-      title: fields[0] as String,
-      items: (fields[1] as List).cast<InvoiceItemModel>(),
-      paidAmount: fields[2] == null ? 0.0 : fields[2] as double,
+    return InvoicePaymentEntryModel(
+      id: fields[0] == null ? '' : fields[0] as String?,
+      amount: fields[1] == null ? 0.0 : fields[1] as double,
+      isReturn: fields[2] == null ? false : fields[2] as bool,
       createdAt: fields[3] as DateTime?,
-      payments: fields[4] == null
-          ? []
-          : (fields[4] as List?)?.cast<InvoicePaymentEntryModel>(),
     );
   }
 
   @override
-  void write(BinaryWriter writer, InvoiceModel obj) {
+  void write(BinaryWriter writer, InvoicePaymentEntryModel obj) {
     writer
-      ..writeByte(5)
-      ..writeByte(0)
-      ..write(obj.title)
-      ..writeByte(1)
-      ..write(obj.items)
-      ..writeByte(2)
-      ..write(obj.paidAmount)
-      ..writeByte(3)
-      ..write(obj.createdAt)
       ..writeByte(4)
-      ..write(obj.payments);
+      ..writeByte(0)
+      ..write(obj.id)
+      ..writeByte(1)
+      ..write(obj.amount)
+      ..writeByte(2)
+      ..write(obj.isReturn)
+      ..writeByte(3)
+      ..write(obj.createdAt);
   }
 
   @override
@@ -49,7 +45,7 @@ class InvoiceModelAdapter extends TypeAdapter<InvoiceModel> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is InvoiceModelAdapter &&
+      other is InvoicePaymentEntryModelAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }

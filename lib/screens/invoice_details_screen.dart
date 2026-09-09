@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:fatora/app/app_theme.dart';
 import 'package:fatora/core/utils/app_toast.dart';
+import 'package:fatora/core/utils/responsive.dart';
 import 'package:fatora/core/utils/ui_feed_back_utils.dart';
+import 'package:fatora/widgets/common/app_empty_state.dart';
 import 'package:fatora/widgets/delete_background.dart';
-import 'package:fatora/widgets/invoice/empty_items_state.dart';
 import 'package:fatora/widgets/invoice/invoice_item_sheet.dart';
 import 'package:fatora/widgets/invoice/invoice_item_tile.dart';
 import 'package:fatora/widgets/invoice/invoice_payment_summary_card.dart';
@@ -32,6 +34,10 @@ class InvoiceDetailsScreen extends StatefulWidget {
 }
 
 class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
+  /// Most of the screen the payment card may claim, leaving the rest to the
+  /// items list.
+  static const double _maxSummaryHeightFraction = .62;
+
   final Set<String> _selectedItemIds = <String>{};
 
   List<InvoiceItemModel>? _cachedItemsReference;
@@ -131,7 +137,7 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: currentInvoice.isPaymentCompleted
-                            ? Colors.green
+                            ? context.statusColors.success
                             : colorScheme.onSurface,
                       ),
                     ),
@@ -167,29 +173,51 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                   icon: Icons.add_rounded,
                 )
               : null,
-          body: Column(
-            children: [
-              InvoicePaymentSummaryCard(invoice: currentInvoice),
-              Expanded(
-                child: _ItemsList(
-                  invoice: currentInvoice,
-                  items: sortedItems,
-                  emptyColor: colorScheme.primary,
-                  canEditItems: canEditItems,
-                  isMutating: isMutating,
-                  isSelectionMode: isSelectionMode,
-                  selectedItemIds: validSelectedItemIds,
-                  onStartSelection: _startSelection,
-                  onToggleSelection: _toggleSelection,
-                  onSwipeDelete: (originalIndex) {
-                    return _confirmAndDeleteSingleItem(
-                      invoice: currentInvoice,
-                      originalIndex: originalIndex,
-                    );
-                  },
-                ),
-              ),
-            ],
+          body: ContentWidthLimiter(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Column(
+                  children: [
+                    // The payment card grows with its content — the payment
+                    // log expands, the system font can be scaled to 1.4 — so
+                    // it is capped and allowed to scroll inside that cap.
+                    // Left to size itself freely it overflowed the column on a
+                    // small phone, and the items list is guaranteed the rest.
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight:
+                            constraints.maxHeight * _maxSummaryHeightFraction,
+                      ),
+                      child: SingleChildScrollView(
+                        primary: false,
+                        child: InvoicePaymentSummaryCard(
+                          invoice: currentInvoice,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: _ItemsList(
+                        invoice: currentInvoice,
+                        items: sortedItems,
+                        emptyColor: colorScheme.primary,
+                        canEditItems: canEditItems,
+                        isMutating: isMutating,
+                        isSelectionMode: isSelectionMode,
+                        selectedItemIds: validSelectedItemIds,
+                        onStartSelection: _startSelection,
+                        onToggleSelection: _toggleSelection,
+                        onSwipeDelete: (originalIndex) {
+                          return _confirmAndDeleteSingleItem(
+                            invoice: currentInvoice,
+                            originalIndex: originalIndex,
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -509,16 +537,30 @@ class _ItemsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (invoice.items.isEmpty) {
-      return EmptyItemsState(color: emptyColor);
+      return AppEmptyState(
+        icon: Icons.playlist_add_outlined,
+        color: emptyColor,
+        title: 'لا توجد عناصر بعد',
+        message: canEditItems
+            ? 'اضغط على “إضافة عنصر” لإضافة أول صنف إلى هذه الفاتورة.'
+            : 'هذه الفاتورة مدفوعة بالكامل ولا يمكن تعديل عناصرها.',
+        bottomInset: canEditItems ? 72 : 0,
+      );
     }
+
+    final horizontalPadding = Responsive.horizontalPadding(
+      MediaQuery.sizeOf(context).width,
+    );
 
     return ListView.separated(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: EdgeInsets.fromLTRB(
-        16,
-        8,
-        16,
-        canEditItems && !isSelectionMode ? 96 : 24,
+        horizontalPadding,
+        AppSpacing.sm,
+        horizontalPadding,
+        canEditItems && !isSelectionMode
+            ? AppSpacing.fabScrollInset
+            : AppSpacing.xl,
       ),
       itemCount: items.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),

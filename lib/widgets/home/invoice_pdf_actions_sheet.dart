@@ -1,8 +1,18 @@
+import 'package:fatora/core/utils/app_toast.dart';
+import 'package:fatora/core/utils/responsive.dart';
 import 'package:fatora/data/models/invoice_model.dart';
 import 'package:fatora/data/services/pdf/pdf_service.dart';
 import 'package:fatora/screens/invoice_pdf_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
+/// What the sheet did before it closed, so the caller can report it.
+class _PdfActionOutcome {
+  final String message;
+  final bool isError;
+
+  const _PdfActionOutcome({required this.message, this.isError = false});
+}
 
 class InvoicePdfActionsSheet extends StatefulWidget {
   final InvoiceModel invoice;
@@ -12,18 +22,26 @@ class InvoicePdfActionsSheet extends StatefulWidget {
   static Future<void> show({
     required BuildContext context,
     required InvoiceModel invoice,
-  }) {
-    return showModalBottomSheet<void>(
+  }) async {
+    final outcome = await showModalBottomSheet<_PdfActionOutcome>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
       showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      // Colour and shape come from `bottomSheetTheme`.
+      constraints: const BoxConstraints(maxWidth: Responsive.maxSheetWidth),
       builder: (_) => InvoicePdfActionsSheet(invoice: invoice),
     );
+
+    // Feedback is raised here, from the caller's still-mounted context, rather
+    // than from inside the sheet after it has popped itself.
+    if (outcome == null || !context.mounted) return;
+
+    if (outcome.isError) {
+      AppToast.showError(context, message: outcome.message);
+    } else {
+      AppToast.showSuccess(context, message: outcome.message);
+    }
   }
 
   @override
@@ -39,22 +57,30 @@ class _InvoicePdfActionsSheetState extends State<InvoicePdfActionsSheet> {
   bool _isSaving = false;
   bool _isSharing = false;
 
+  /// Closes the sheet and hands [outcome] back to `show`, which reports it.
+  void _closeWith(_PdfActionOutcome? outcome) {
+    if (!mounted) return;
+
+    Navigator.of(context).pop(outcome);
+  }
+
   Future<void> _openPreview() async {
     if (_isPreviewing) return;
 
     setState(() => _isPreviewing = true);
 
-    try {
-      Navigator.of(context).pop();
+    // The navigator is resolved *before* popping. Previously this popped the
+    // sheet and then called `Navigator.of(context)` again on the same, now
+    // defunct, context to push the preview route.
+    final navigator = Navigator.of(context);
 
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => InvoicePdfScreen(invoice: widget.invoice),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isPreviewing = false);
-    }
+    navigator.pop();
+
+    await navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => InvoicePdfScreen(invoice: widget.invoice),
+      ),
+    );
   }
 
   Future<void> _savePdf() async {
@@ -65,36 +91,20 @@ class _InvoicePdfActionsSheetState extends State<InvoicePdfActionsSheet> {
     try {
       final result = await PdfService.saveInvoice(widget.invoice);
 
-      if (!mounted) return;
-
-      final messenger = ScaffoldMessenger.of(context);
-
-      Navigator.of(context).pop();
-
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          _PdfSnackBar.build(
-            context: context,
-            icon: Icons.check_circle_rounded,
-            message: 'تم حفظ الملف: ${result.fileName}',
-          ),
-        );
+      _closeWith(
+        _PdfActionOutcome(message: 'تم حفظ الملف: ${result.fileName}'),
+      );
     } catch (_) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          _PdfSnackBar.build(
-            context: context,
-            icon: Icons.error_rounded,
-            message: 'حدث خطأ أثناء حفظ ملف PDF',
-            isError: true,
-          ),
-        );
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
+      setState(() => _isSaving = false);
+
+      _closeWith(
+        const _PdfActionOutcome(
+          message: 'حدث خطأ أثناء حفظ ملف PDF',
+          isError: true,
+        ),
+      );
     }
   }
 
@@ -106,36 +116,20 @@ class _InvoicePdfActionsSheetState extends State<InvoicePdfActionsSheet> {
     try {
       await PdfService.shareInvoice(widget.invoice);
 
-      if (!mounted) return;
-
-      final messenger = ScaffoldMessenger.of(context);
-
-      Navigator.of(context).pop();
-
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          _PdfSnackBar.build(
-            context: context,
-            icon: Icons.ios_share_rounded,
-            message: 'تم تجهيز الفاتورة للمشاركة بنجاح',
-          ),
-        );
+      _closeWith(
+        const _PdfActionOutcome(message: 'تم تجهيز الفاتورة للمشاركة بنجاح'),
+      );
     } catch (_) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          _PdfSnackBar.build(
-            context: context,
-            icon: Icons.error_rounded,
-            message: 'حدث خطأ أثناء مشاركة ملف PDF',
-            isError: true,
-          ),
-        );
-    } finally {
-      if (mounted) setState(() => _isSharing = false);
+      setState(() => _isSharing = false);
+
+      _closeWith(
+        const _PdfActionOutcome(
+          message: 'حدث خطأ أثناء مشاركة ملف PDF',
+          isError: true,
+        ),
+      );
     }
   }
 
@@ -339,53 +333,6 @@ class _ActionSvgIcon extends StatelessWidget {
       colorFilter: ColorFilter.mode(
         theme.colorScheme.onPrimary,
         BlendMode.srcIn,
-      ),
-    );
-  }
-}
-
-class _PdfSnackBar {
-  const _PdfSnackBar._();
-
-  static SnackBar build({
-    required BuildContext context,
-    required IconData icon,
-    required String message,
-    bool isError = false,
-  }) {
-    final theme = Theme.of(context);
-
-    final backgroundColor = isError
-        ? theme.colorScheme.error
-        : theme.colorScheme.primary;
-
-    final foregroundColor = isError
-        ? theme.colorScheme.onError
-        : theme.colorScheme.onPrimary;
-
-    return SnackBar(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: backgroundColor,
-      elevation: 0,
-      margin: const EdgeInsets.all(14),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      content: Directionality(
-        textDirection: TextDirection.rtl,
-        child: Row(
-          children: [
-            Icon(icon, color: foregroundColor),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                message,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: foregroundColor,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

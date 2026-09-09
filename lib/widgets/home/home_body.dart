@@ -1,8 +1,10 @@
-import 'package:fatora/widgets/home/home_empty_state.dart';
 import 'package:flutter/material.dart';
 
+import '../../app/app_theme.dart';
+import '../../core/utils/responsive.dart';
 import '../../data/models/invoice_model.dart';
 import '../../data/models/invoices_totals.dart';
+import '../common/app_empty_state.dart';
 import '../customer_search_field.dart';
 import 'home_totals_section.dart';
 import 'invoices_list.dart';
@@ -41,45 +43,56 @@ class HomeBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final hasInvoices = invoices.isNotEmpty;
     final hasSearchQuery = searchQuery.trim().isNotEmpty;
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: HomeTotalsSection(totals: totals),
-        ),
-        CustomerSearchField(
-          controller: searchController,
-          enabled: hasInvoices,
-          onClear: onClearSearch,
-          labelText: searchLabelText,
-          enabledHintText: 'اكتب اسم الفاتورة فقط',
-          disabledHintText: 'لا توجد فواتير لتفعيل البحث',
-        ),
-        Expanded(
-          child: hasInvoices
-              ? InvoicesList(
-                  invoices: visibleInvoices,
-                  totalInvoiceCount: invoices.length,
-                  hasSearchQuery: hasSearchQuery,
-                  scrollController: invoiceListController,
-                  onEditInvoice: onEditInvoice,
-                  onDeleteInvoice: onDeleteInvoice,
-                )
-              : HomeEmptyState(
-                  color: colorScheme.primary,
-                  title: emptyTitle,
-                  message: allowCreateInvoice
-                      ? 'اضغط على زر “فاتورة جديدة” لإنشاء فاتورة لهذا الشهر.'
-                      : 'لا توجد فواتير محفوظة ضمن هذا الشهر.',
-                ),
-        ),
-        if (hasSearchQuery && visibleInvoices.isNotEmpty)
-          _SearchResultIndicator(count: visibleInvoices.length),
-      ],
+    final horizontalPadding = Responsive.horizontalPadding(
+      MediaQuery.sizeOf(context).width,
+    );
+
+    return ContentWidthLimiter(
+      child: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              AppSpacing.sm,
+              horizontalPadding,
+              AppSpacing.sm,
+            ),
+            child: HomeTotalsSection(totals: totals),
+          ),
+          CustomerSearchField(
+            controller: searchController,
+            enabled: hasInvoices,
+            onClear: onClearSearch,
+            labelText: searchLabelText,
+            enabledHintText: 'اكتب اسم الفاتورة فقط',
+            disabledHintText: 'لا توجد فواتير لتفعيل البحث',
+          ),
+          Expanded(
+            child: hasInvoices
+                ? InvoicesList(
+                    invoices: visibleInvoices,
+                    totalInvoiceCount: invoices.length,
+                    hasSearchQuery: hasSearchQuery,
+                    scrollController: invoiceListController,
+                    onEditInvoice: onEditInvoice,
+                    onDeleteInvoice: onDeleteInvoice,
+                  )
+                : AppEmptyState(
+                    icon: Icons.receipt_long_outlined,
+                    title: emptyTitle,
+                    message: allowCreateInvoice
+                        ? 'اضغط على زر “فاتورة جديدة” لإنشاء فاتورة لهذا الشهر.'
+                        : 'لا توجد فواتير محفوظة ضمن هذا الشهر.',
+                    bottomInset: allowCreateInvoice ? 72 : 0,
+                  ),
+          ),
+          if (hasSearchQuery && visibleInvoices.isNotEmpty)
+            _SearchResultIndicator(count: visibleInvoices.length),
+        ],
+      ),
     );
   }
 }

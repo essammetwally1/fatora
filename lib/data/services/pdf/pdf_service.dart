@@ -80,9 +80,22 @@ class PdfService {
         .replaceAll(RegExp(r'\s+'), '_');
 
     final title = sanitizedTitle.isEmpty ? 'invoice' : sanitizedTitle;
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
 
-    return '$title-$timestamp.pdf';
+    // Named after the invoice's date so saved files sort by when the business
+    // happened, not by when someone happened to export them. Undated legacy
+    // invoices are marked as such instead of borrowing today's date.
+    final createdAt = invoice.createdAt;
+
+    final datePart = createdAt == null
+        ? 'legacy'
+        : '${createdAt.year.toString().padLeft(4, '0')}-'
+              '${createdAt.month.toString().padLeft(2, '0')}-'
+              '${createdAt.day.toString().padLeft(2, '0')}';
+
+    // Kept only so two exports of the same invoice cannot collide.
+    final uniqueSuffix = DateTime.now().millisecondsSinceEpoch;
+
+    return '$title-$datePart-$uniqueSuffix.pdf';
   }
 }
 

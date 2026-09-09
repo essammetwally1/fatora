@@ -6,21 +6,40 @@ import 'package:fatora/providers/fixed_menu_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+/// Identity of a menu item for selection purposes.
+///
+/// Hive's box key is used when the item is stored, which it always is when it
+/// comes from the provider. The name/price fallback only matters for an item
+/// built in a test or detached from its box, and keeps selection working there
+/// instead of collapsing every such item onto a single `null` key.
+Object fixedMenuItemKey(FixedMenuItemModel item) {
+  return item.key ?? '${item.displayName}-${item.price}';
+}
+
+/// Multi-select list of the saved fixed-menu items.
+///
+/// Selecting several rows composes them into one invoice line — "عدسة + إطار"
+/// priced at the sum — which is how the shop actually sells: one job made of
+/// several standard parts, charged as a single figure. Tapping a selected row
+/// again removes it, so a mis-tap costs one tap to undo rather than forcing
+/// the user to clear and start over.
 class FixedMenuQuickPicker extends StatelessWidget {
   final bool enabled;
-  final ValueChanged<FixedMenuItemModel> onSelected;
 
-  /// Kept for compatibility with previous Step 4 code.
-  /// This UI intentionally shows name + price only.
-  final ValueChanged<FixedMenuItemModel>? onQuickAdd;
-  final Object? quickAddingKey;
+  /// Keys, per [fixedMenuItemKey], of the currently selected rows.
+  final Set<Object> selectedKeys;
+
+  final ValueChanged<FixedMenuItemModel> onToggle;
+
+  /// Clears the whole selection. Hidden when nothing is selected.
+  final VoidCallback? onClearSelection;
 
   const FixedMenuQuickPicker({
     super.key,
     required this.enabled,
-    required this.onSelected,
-    this.onQuickAdd,
-    this.quickAddingKey,
+    required this.selectedKeys,
+    required this.onToggle,
+    this.onClearSelection,
   });
 
   @override
@@ -52,13 +71,16 @@ class FixedMenuQuickPicker extends StatelessWidget {
           children: [
             _PickerHeader(
               count: state.items.length,
+              selectedCount: selectedKeys.length,
               color: colorScheme.primary,
+              onClearSelection: enabled ? onClearSelection : null,
             ),
             const SizedBox(height: 10),
             _FixedMenuItemsViewport(
               enabled: enabled,
               items: state.items,
-              onSelected: onSelected,
+              selectedKeys: selectedKeys,
+              onToggle: onToggle,
             ),
           ],
         ),
@@ -87,20 +109,31 @@ class _FixedMenuPickerState {
 
 class _PickerHeader extends StatelessWidget {
   final int count;
+  final int selectedCount;
   final Color color;
+  final VoidCallback? onClearSelection;
 
-  const _PickerHeader({required this.count, required this.color});
+  const _PickerHeader({
+    required this.count,
+    required this.selectedCount,
+    required this.color,
+    required this.onClearSelection,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final hasSelection = selectedCount > 0;
+
     return Row(
       children: [
         Expanded(
           child: Text(
-            'اختيار من القائمة',
+            hasSelection
+                ? 'تم اختيار $selectedCount من القائمة'
+                : 'اختيار من القائمة',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.titleSmall?.copyWith(
@@ -109,7 +142,24 @@ class _PickerHeader extends StatelessWidget {
             ),
           ),
         ),
-        if (count > 3)
+        if (hasSelection && onClearSelection != null)
+          SizedBox(
+            height: 30,
+            child: TextButton.icon(
+              onPressed: onClearSelection,
+              icon: const Icon(Icons.close_rounded, size: 15),
+              label: const Text('مسح'),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                visualDensity: VisualDensity.compact,
+                foregroundColor: colorScheme.error,
+                textStyle: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          )
+        else if (count > 3)
           Text(
             'اسحب للمزيد',
             style: theme.textTheme.labelSmall?.copyWith(
@@ -125,16 +175,21 @@ class _PickerHeader extends StatelessWidget {
 class _FixedMenuItemsViewport extends StatelessWidget {
   static const int _maxVisibleItems = 3;
   static const double _separatorHeight = 8.0;
-  static const double _horizontalPadding = 20.0;
+
+  /// Row padding plus the width the selection indicator and its gap take out
+  /// of the line, so the measured text width matches what is actually drawn.
+  static const double _horizontalPadding = 20.0 + 22.0 + 10.0;
 
   final bool enabled;
   final List<FixedMenuItemModel> items;
-  final ValueChanged<FixedMenuItemModel> onSelected;
+  final Set<Object> selectedKeys;
+  final ValueChanged<FixedMenuItemModel> onToggle;
 
   const _FixedMenuItemsViewport({
     required this.enabled,
     required this.items,
-    required this.onSelected,
+    required this.selectedKeys,
+    required this.onToggle,
   });
 
   @override
@@ -168,12 +223,14 @@ class _FixedMenuItemsViewport extends StatelessWidget {
                 const SizedBox(height: _separatorHeight),
             itemBuilder: (context, index) {
               final item = items[index];
+              final itemKey = fixedMenuItemKey(item);
 
               return _FixedMenuListItem(
-                key: ValueKey(item.key ?? '${item.displayName}-${item.price}'),
+                key: ValueKey<Object>(itemKey),
                 item: item,
                 enabled: enabled,
-                onTap: () => onSelected(item),
+                selected: selectedKeys.contains(itemKey),
+                onTap: () => onToggle(item),
               );
             },
           ),
@@ -260,12 +317,14 @@ class _FixedMenuItemsViewport extends StatelessWidget {
 class _FixedMenuListItem extends StatelessWidget {
   final FixedMenuItemModel item;
   final bool enabled;
+  final bool selected;
   final VoidCallback onTap;
 
   const _FixedMenuListItem({
     super.key,
     required this.item,
     required this.enabled,
+    required this.selected,
     required this.onTap,
   });
 
@@ -276,40 +335,61 @@ class _FixedMenuListItem extends StatelessWidget {
 
     return Opacity(
       opacity: enabled ? 1 : .55,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(15),
-          child: Ink(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(
-                color: colorScheme.primary.withValues(alpha: .15),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  item.displayName,
-                  softWrap: true,
-                  overflow: TextOverflow.visible,
-                  textAlign: TextAlign.start,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurface,
-                    fontWeight: FontWeight.w900,
-                    height: 1.25,
+      child: Semantics(
+        checked: selected,
+        label: item.displayName,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: enabled ? onTap : null,
+            borderRadius: BorderRadius.circular(15),
+            child: Ink(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+              decoration: BoxDecoration(
+                color: selected
+                    ? colorScheme.primary.withValues(alpha: .12)
+                    : colorScheme.surface,
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(
+                  width: selected ? 1.6 : 1,
+                  color: colorScheme.primary.withValues(
+                    alpha: selected ? .55 : .15,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: _PricePill(price: item.price),
-                ),
-              ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SelectionIndicator(selected: selected),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          item.displayName,
+                          softWrap: true,
+                          overflow: TextOverflow.visible,
+                          textAlign: TextAlign.start,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurface,
+                            fontWeight: FontWeight.w900,
+                            height: 1.25,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: _PricePill(
+                            price: item.price,
+                            selected: selected,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -318,10 +398,42 @@ class _FixedMenuListItem extends StatelessWidget {
   }
 }
 
+class _SelectionIndicator extends StatelessWidget {
+  const _SelectionIndicator({required this.selected});
+
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: selected ? colorScheme.primary : Colors.transparent,
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(
+          width: selected ? 0 : 1.6,
+          color: selected
+              ? colorScheme.primary
+              : colorScheme.outlineVariant.withValues(alpha: .9),
+        ),
+      ),
+      child: selected
+          ? Icon(Icons.check_rounded, size: 15, color: colorScheme.onPrimary)
+          : null,
+    );
+  }
+}
+
 class _PricePill extends StatelessWidget {
   final double price;
+  final bool selected;
 
-  const _PricePill({required this.price});
+  const _PricePill({required this.price, required this.selected});
 
   @override
   Widget build(BuildContext context) {
@@ -332,9 +444,11 @@ class _PricePill extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 190),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: colorScheme.primary.withValues(alpha: .08),
+        color: colorScheme.primary.withValues(alpha: selected ? .16 : .08),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: colorScheme.primary.withValues(alpha: .13)),
+        border: Border.all(
+          color: colorScheme.primary.withValues(alpha: selected ? .3 : .13),
+        ),
       ),
       child: FittedBox(
         fit: BoxFit.scaleDown,

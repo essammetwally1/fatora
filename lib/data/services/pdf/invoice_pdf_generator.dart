@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:fatora/core/utils/formatters.dart';
 import 'package:fatora/data/models/invoice_item_model.dart';
 import 'package:fatora/data/models/invoice_model.dart';
+import 'package:fatora/data/models/invoice_payment_line.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -19,6 +20,8 @@ class InvoicePdfGenerator {
   static final PdfColor _muted = PdfColor.fromHex('#667085');
   static final PdfColor _line = PdfColor.fromHex('#D8B56A');
   static final PdfColor _softRow = PdfColor.fromHex('#FBF6EA');
+  static final PdfColor _paymentGreen = PdfColor.fromHex('#1B6B3A');
+  static final PdfColor _returnRed = PdfColor.fromHex('#A02525');
 
   static const PdfColor _bgGold = PdfColor(0.72, 0.54, 0.21, 0.10);
   static const PdfColor _bgNavy = PdfColor(0.02, 0.12, 0.23, 0.06);
@@ -357,7 +360,8 @@ class InvoicePdfGenerator {
         ? 'عميل غير معروف'
         : invoice.title.trim();
 
-    final date = Formatters.formatDate(DateTime.now());
+    // The invoice's own date, never the clock.
+    final date = Formatters.formatInvoiceDocumentDate(invoice.createdAt);
 
     return pw.Container(
       padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
@@ -460,7 +464,233 @@ class InvoicePdfGenerator {
         for (int i = 0; i < invoice.items.length; i++)
           _itemRow(invoice.items[i], i),
       _totalAndPaymentSummary(invoice),
+      ..._buildPaymentBreakdown(invoice),
     ];
+  }
+
+  /// The dated breakdown printed under "المبلغ المدفوع".
+  ///
+  /// Split into payments and returns so a customer can see what they handed
+  /// over and what came back, rather than only the net figure. Omitted
+  /// entirely when nothing has been paid: an all-zero block on an unpaid
+  /// invoice is noise.
+  static List<pw.Widget> _buildPaymentBreakdown(InvoiceModel invoice) {
+    final rows = InvoicePaymentLine.fromInvoice(invoice);
+
+    if (rows.isEmpty) return const [];
+
+    final payments = rows.where((row) => !row.isReturn).toList(growable: false);
+    final returns = rows.where((row) => row.isReturn).toList(growable: false);
+
+    var lineIndex = 0;
+
+    return [
+      pw.SizedBox(height: 9),
+      _paymentSectionHeader(),
+      if (payments.isNotEmpty) ...[
+        _paymentGroupHeader(
+          label: 'المدفوعات',
+          color: _paymentGreen,
+          amount: InvoicePaymentLine.sumOf(payments),
+        ),
+        for (final row in payments) _paymentRow(row, lineIndex++),
+      ],
+      if (returns.isNotEmpty) ...[
+        _paymentGroupHeader(
+          label: 'المرتجعات',
+          color: _returnRed,
+          amount: InvoicePaymentLine.sumOf(returns),
+        ),
+        for (final row in returns) _paymentRow(row, lineIndex++),
+      ],
+      _paymentNetRow(invoice),
+    ];
+  }
+
+  static pw.Widget _paymentSectionHeader() {
+    return pw.Container(
+      height: 26,
+      decoration: pw.BoxDecoration(
+        color: _navy,
+        borderRadius: const pw.BorderRadius.vertical(
+          top: pw.Radius.circular(9),
+        ),
+        border: pw.Border.all(color: _line, width: .65),
+      ),
+      child: pw.Row(
+        children: [
+          pw.Expanded(
+            flex: 4,
+            child: _tableText(
+              'تفاصيل الدفعات والمرتجعات',
+              color: _white,
+              bold: true,
+              center: true,
+              fontSize: 10.2,
+            ),
+          ),
+          _tableDivider(color: _line, height: 26),
+          pw.Expanded(
+            flex: 3,
+            child: _tableText(
+              'التاريخ',
+              color: _white,
+              bold: true,
+              center: true,
+              fontSize: 10.2,
+            ),
+          ),
+          _tableDivider(color: _line, height: 26),
+          pw.Expanded(
+            flex: 2,
+            child: _tableText(
+              'الوقت',
+              color: _white,
+              bold: true,
+              center: true,
+              fontSize: 10.2,
+            ),
+          ),
+          _tableDivider(color: _line, height: 26),
+          pw.Expanded(
+            flex: 3,
+            child: _tableText(
+              'المبلغ',
+              color: _white,
+              bold: true,
+              center: true,
+              fontSize: 10.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _paymentGroupHeader({
+    required String label,
+    required PdfColor color,
+    required double amount,
+  }) {
+    return pw.Container(
+      height: 24,
+      decoration: pw.BoxDecoration(
+        color: _softGold,
+        border: pw.Border(
+          left: pw.BorderSide(color: _line, width: .5),
+          right: pw.BorderSide(color: _line, width: .5),
+          bottom: pw.BorderSide(color: _line, width: .5),
+        ),
+      ),
+      child: pw.Row(
+        children: [
+          pw.Expanded(
+            flex: 9,
+            child: _tableText(
+              label,
+              color: color,
+              bold: true,
+              center: true,
+              fontSize: 10.2,
+            ),
+          ),
+          _tableDivider(height: 24),
+          pw.Expanded(
+            flex: 3,
+            child: _priceText(
+              Formatters.formatMoney(amount),
+              fontSize: 10.2,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _paymentRow(InvoicePaymentLine row, int index) {
+    final occurredAt = row.occurredAt;
+    final color = row.isReturn ? _returnRed : _text;
+
+    return pw.Container(
+      constraints: const pw.BoxConstraints(minHeight: 26),
+      decoration: pw.BoxDecoration(
+        color: index.isEven ? _white : _softRow,
+        border: pw.Border(
+          left: pw.BorderSide(color: _line, width: .5),
+          right: pw.BorderSide(color: _line, width: .5),
+          bottom: pw.BorderSide(color: _line, width: .38),
+        ),
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          pw.Expanded(
+            flex: 4,
+            child: _tableText(
+              row.labelAr,
+              color: color,
+              bold: true,
+              center: true,
+              maxLines: 2,
+              fontSize: 10,
+            ),
+          ),
+          _tableDivider(height: 26),
+          pw.Expanded(
+            flex: 3,
+            child: _priceText(
+              occurredAt == null
+                  ? '—'
+                  : Formatters.formatPaymentDate(occurredAt),
+              fontSize: 9.6,
+              color: _muted,
+            ),
+          ),
+          _tableDivider(height: 26),
+          pw.Expanded(
+            flex: 2,
+            child: _tableText(
+              occurredAt == null
+                  ? '—'
+                  : Formatters.formatPaymentTime(occurredAt),
+              color: _muted,
+              center: true,
+              fontSize: 9.6,
+            ),
+          ),
+          _tableDivider(height: 26),
+          pw.Expanded(
+            flex: 3,
+            child: _priceText(
+              row.isReturn
+                  ? '- ${Formatters.formatMoney(row.amount)}'
+                  : Formatters.formatMoney(row.amount),
+              fontSize: 10.2,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _paymentNetRow(InvoiceModel invoice) {
+    return pw.Container(
+      decoration: pw.BoxDecoration(
+        borderRadius: const pw.BorderRadius.vertical(
+          bottom: pw.Radius.circular(9),
+        ),
+        border: pw.Border.all(color: _line, width: .75),
+      ),
+      child: _invoiceMoneyRow(
+        label: 'صافي المدفوع',
+        value: Formatters.formatMoney(invoice.paidTotal),
+        height: 32,
+        isLast: true,
+        isMain: false,
+      ),
+    );
   }
 
   static pw.Widget _tableHeader() {

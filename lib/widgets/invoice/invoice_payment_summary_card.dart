@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/app_theme.dart';
+import '../../core/utils/app_toast.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/number_input_utils.dart';
 import '../../data/models/invoice_model.dart';
 import '../../providers/invoice_provider.dart';
+import 'invoice_payment_history.dart';
 
 enum _PaymentMode { add, subtract }
 
@@ -21,29 +24,6 @@ class InvoicePaymentSummaryCard extends StatefulWidget {
 }
 
 class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
-  static const Map<String, String> _digitReplacements = {
-    '٠': '0',
-    '١': '1',
-    '٢': '2',
-    '٣': '3',
-    '٤': '4',
-    '٥': '5',
-    '٦': '6',
-    '٧': '7',
-    '٨': '8',
-    '٩': '9',
-    '۰': '0',
-    '۱': '1',
-    '۲': '2',
-    '۳': '3',
-    '۴': '4',
-    '۵': '5',
-    '۶': '6',
-    '۷': '7',
-    '۸': '8',
-    '۹': '9',
-  };
-
   final TextEditingController _amountController = TextEditingController();
   final FocusNode _amountFocusNode = FocusNode();
 
@@ -178,6 +158,7 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final statusColors = context.statusColors;
 
     final providerBusy = context.select<InvoiceProvider, bool>(
       (provider) => provider.isMutating,
@@ -237,13 +218,13 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
                   value: Formatters.formatMoney(_total),
                   color: widget.invoice.canEditItems
                       ? colorScheme.primary
-                      : Colors.green,
+                      : statusColors.success,
                 ),
                 const SizedBox(width: 7),
                 _SummaryMiniBox(
                   title: 'مدفوع',
                   value: Formatters.formatMoney(_previewPaid),
-                  color: Colors.green,
+                  color: statusColors.success,
                 ),
                 const SizedBox(width: 7),
                 _SummaryMiniBox(
@@ -251,7 +232,7 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
                   value: Formatters.formatMoney(_previewRemaining),
                   color: _previewRemaining > 0
                       ? colorScheme.error
-                      : Colors.green,
+                      : statusColors.success,
                 ),
               ],
             ),
@@ -271,7 +252,7 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
                 decimal: true,
                 signed: false,
               ),
-              inputFormatters: const [_PositiveDecimalTextInputFormatter()],
+              inputFormatters: const [PositiveDecimalTextInputFormatter()],
               textInputAction: TextInputAction.done,
               textAlign: TextAlign.right,
               textDirection: TextDirection.ltr,
@@ -328,13 +309,19 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
                   child: _SmallPaymentButton(
                     label: 'دفع كامل',
                     icon: Icons.done_all_rounded,
-                    color: Colors.green,
+                    color: statusColors.success,
                     filled: false,
                     loading: _savingAction == _PaymentSaveAction.complete,
                     onPressed: canCompletePayment ? _completePayment : null,
                   ),
                 ),
               ],
+            ),
+            InvoicePaymentHistory(
+              // Keyed by invoice so switching invoices collapses the log
+              // rather than carrying the previous one's expanded state over.
+              key: ValueKey<Object?>(widget.invoice.key),
+              invoice: widget.invoice,
             ),
           ],
         ),
@@ -420,25 +407,7 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
     });
   }
 
-  double? _parseAmount(String value) {
-    var clean = value.trim().replaceAll('٫', '.').replaceAll(',', '.');
-
-    for (final entry in _digitReplacements.entries) {
-      clean = clean.replaceAll(entry.key, entry.value);
-    }
-
-    if (clean.isEmpty || clean == '.') {
-      return null;
-    }
-
-    final parsed = double.tryParse(clean);
-
-    if (parsed == null || !parsed.isFinite) {
-      return null;
-    }
-
-    return parsed;
-  }
+  double? _parseAmount(String value) => NumberInputUtils.parseAmount(value);
 
   String? _validateAmountText({bool required = false}) {
     final text = _amountController.text.trim();
@@ -584,22 +553,21 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
       return;
     }
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    // Matches the toast feedback used everywhere else in the app.
+    AppToast.showError(context, message: message);
   }
 
   Color _operationColor(ColorScheme colorScheme) {
-    return _isSubtract ? colorScheme.error : Colors.green;
+    return _isSubtract ? colorScheme.error : context.statusColors.success;
   }
 
   Color _statusColor(ColorScheme colorScheme) {
     if (_isComplete) {
-      return Colors.green;
+      return context.statusColors.success;
     }
 
     if (_isPartial) {
-      return Colors.blue;
+      return context.statusColors.info;
     }
 
     return colorScheme.error;
@@ -679,7 +647,7 @@ class _PaymentModeSelector extends StatelessWidget {
             icon: Icons.add_rounded,
             selected: mode == _PaymentMode.add,
             enabled: addEnabled,
-            color: Colors.green,
+            color: context.statusColors.success,
             onTap: () {
               onChanged(_PaymentMode.add);
             },
@@ -764,28 +732,6 @@ class _ModeChipButton extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _PositiveDecimalTextInputFormatter extends TextInputFormatter {
-  const _PositiveDecimalTextInputFormatter();
-
-  static final RegExp _validInput = RegExp(
-    r'^[0-9٠-٩۰-۹]*([.,٫][0-9٠-٩۰-۹]{0,2})?$',
-  );
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final text = newValue.text.trim();
-
-    if (text.isEmpty || _validInput.hasMatch(text)) {
-      return newValue;
-    }
-
-    return oldValue;
   }
 }
 

@@ -1,12 +1,16 @@
 import 'package:fatora/widgets/menu/fixed_menu_quick_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../../../data/models/fixed_menu_item_model.dart';
-import '../../../data/models/invoice_item_model.dart';
-import '../../../data/models/invoice_model.dart';
-import '../../../providers/invoice_provider.dart';
+import '../../app/app_theme.dart';
+import '../../core/utils/app_toast.dart';
+import '../../core/utils/formatters.dart';
+import '../../core/utils/number_input_utils.dart';
+import '../../core/utils/responsive.dart';
+import '../../data/models/fixed_menu_item_model.dart';
+import '../../data/models/invoice_item_model.dart';
+import '../../data/models/invoice_model.dart';
+import '../../providers/invoice_provider.dart';
 import 'app_text_form_field.dart';
 
 Future<void> showInvoiceItemSheet(
@@ -29,10 +33,9 @@ Future<void> showInvoiceItemSheet(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    backgroundColor: Theme.of(context).cardColor,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-    ),
+    // Colour and shape come from `bottomSheetTheme`; the constraint keeps the
+    // form from stretching across a tablet.
+    constraints: const BoxConstraints(maxWidth: Responsive.maxSheetWidth),
     builder: (_) {
       return _InvoiceItemSheetContent(
         invoice: invoice,
@@ -68,10 +71,30 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
 
   bool _saving = false;
 
-  FixedMenuItemModel? _selectedMenuItem;
-  Object? _quickAddingKey;
+  /// Menu items composing the line being built, in the order they were picked.
+  /// The name and price fields are regenerated from this whenever it changes.
+  final List<FixedMenuItemModel> _selectedMenuItems = <FixedMenuItemModel>[];
+
+  /// Mirror of [_selectedMenuItems] keyed for O(1) lookup, because the picker
+  /// asks "is this row selected?" for every visible row on every rebuild.
+  final Set<Object> _selectedMenuKeys = <Object>{};
 
   bool get _isEditing => widget.existing != null;
+
+  double get _selectedMenuTotal {
+    var total = 0.0;
+
+    for (final item in _selectedMenuItems) {
+      total += NumberInputUtils.safePositive(item.price);
+    }
+
+    return total;
+  }
+
+  /// The composed line name, e.g. `عدسة + إطار`.
+  String get _selectedMenuName {
+    return _selectedMenuItems.map((item) => item.displayName).join(' + ');
+  }
 
   @override
   void initState() {
@@ -103,10 +126,10 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
       textDirection: TextDirection.rtl,
       child: Padding(
         padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 12,
-          bottom: viewInsets.bottom + 16,
+          left: AppSpacing.lg,
+          right: AppSpacing.lg,
+          top: AppSpacing.md,
+          bottom: viewInsets.bottom + AppSpacing.lg,
         ),
         child: SingleChildScrollView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -129,12 +152,11 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
 
                 FixedMenuQuickPicker(
                   enabled: !_saving,
-                  onSelected: _applyFixedMenuItem,
-
-                  // Quick add is only for creating a new item.
-                  // When editing an existing item, user should save changes manually.
-                  onQuickAdd: _isEditing ? null : _quickAddFixedMenuItem,
-                  quickAddingKey: _quickAddingKey,
+                  selectedKeys: _selectedMenuKeys,
+                  onToggle: _toggleFixedMenuItem,
+                  onClearSelection: _selectedMenuItems.isEmpty
+                      ? null
+                      : _clearSelectedMenuItems,
                 ),
 
                 const SizedBox(height: 12),
@@ -160,7 +182,7 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
                     signed: false,
                   ),
                   textInputAction: TextInputAction.next,
-                  inputFormatters: const [_PositiveDecimalTextInputFormatter()],
+                  inputFormatters: const [PositiveDecimalTextInputFormatter()],
                   validator: _validatePrice,
                 ),
                 const SizedBox(height: 12),
@@ -171,11 +193,13 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
                   maxLines: 3,
                   textInputAction: TextInputAction.newline,
                 ),
-                if (_selectedMenuItem != null) ...[
+                if (_selectedMenuItems.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   _SelectedFixedMenuHint(
-                    item: _selectedMenuItem!,
-                    onClear: _saving ? null : _clearSelectedMenuItem,
+                    name: _selectedMenuName,
+                    total: _selectedMenuTotal,
+                    count: _selectedMenuItems.length,
+                    onClear: _saving ? null : _clearSelectedMenuItems,
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -225,98 +249,67 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
     return null;
   }
 
-  void _applyFixedMenuItem(FixedMenuItemModel item) {
+  /// Adds or removes a menu item from the composed line.
+  ///
+  /// The name and price fields are then rewritten from the whole selection, so
+  /// they always match what is ticked. That does discard a manual edit made in
+  /// between, which is the predictable trade: the ticked rows are the visible
+  /// source of truth, and a stale hand-typed total would be the dangerous one.
+  void _toggleFixedMenuItem(FixedMenuItemModel item) {
     if (_saving) return;
 
-    final priceText = _cleanNumber(item.price);
+    final itemKey = fixedMenuItemKey(item);
 
     setState(() {
-      _selectedMenuItem = item;
-      _itemController.text = item.displayName;
-      _priceController.text = priceText;
+      if (_selectedMenuKeys.remove(itemKey)) {
+        _selectedMenuItems.removeWhere(
+          (selected) => fixedMenuItemKey(selected) == itemKey,
+        );
+      } else {
+        _selectedMenuKeys.add(itemKey);
+        _selectedMenuItems.add(item);
+      }
+
+      _syncFieldsWithSelection();
     });
 
     _formKey.currentState?.validate();
   }
 
-  void _clearSelectedMenuItem() {
+  void _clearSelectedMenuItems() {
     if (_saving) return;
 
     FocusScope.of(context).unfocus();
 
     setState(() {
-      _selectedMenuItem = null;
-
-      if (_isEditing) {
-        final existing = widget.existing;
-
-        _itemController.text = existing?.itemName ?? '';
-        _priceController.text = existing == null
-            ? ''
-            : _cleanNumber(existing.price);
-        _noteController.text = existing?.note ?? '';
-      } else {
-        _clearFormInputs();
-      }
+      _selectedMenuItems.clear();
+      _selectedMenuKeys.clear();
+      _syncFieldsWithSelection();
     });
 
     _formKey.currentState?.reset();
   }
 
-  Future<void> _quickAddFixedMenuItem(FixedMenuItemModel menuItem) async {
-    if (_saving || _isEditing) return;
+  /// Rewrites the name and price fields from the current selection.
+  ///
+  /// Emptying the selection restores the starting point rather than leaving
+  /// the last composed text behind: the original values when editing, blank
+  /// when creating. The note is never touched — it is the user's own text and
+  /// no menu item has anything to say about it.
+  void _syncFieldsWithSelection() {
+    if (_selectedMenuItems.isEmpty) {
+      final existing = widget.existing;
 
-    final cleanName = menuItem.displayName.trim();
-    final cleanPrice = _safePositive(menuItem.price);
+      _itemController.text = existing?.itemName ?? '';
+      _priceController.text = existing == null
+          ? ''
+          : _cleanNumber(existing.price);
 
-    if (cleanName.isEmpty || cleanPrice <= 0) {
-      _showSnackBar('بيانات الصنف غير صحيحة');
       return;
     }
 
-    FocusScope.of(context).unfocus();
-
-    final itemKey = menuItem.key ?? '${menuItem.displayName}-${menuItem.price}';
-
-    setState(() {
-      _saving = true;
-      _quickAddingKey = itemKey;
-      _selectedMenuItem = menuItem;
-    });
-
-    final invoiceItem = InvoiceItemModel(
-      itemName: cleanName,
-      price: cleanPrice,
-      note: null,
-
-      // Payment is controlled by InvoicePaymentSummaryCard only.
-      isPaid: false,
-      paidAmount: 0.0,
-    );
-
-    final saved = await context.read<InvoiceProvider>().addItem(
-      invoice: widget.invoice,
-      item: invoiceItem,
-    );
-
-    if (!mounted) return;
-
-    setState(() {
-      _saving = false;
-      _quickAddingKey = null;
-
-      if (saved) {
-        _selectedMenuItem = null;
-        _clearFormInputs();
-        _formKey.currentState?.reset();
-      }
-    });
-
-    _showSnackBar(
-      saved
-          ? 'تمت إضافة "$cleanName" للفاتورة'
-          : 'تعذر إضافة الصنف، حاول مرة أخرى',
-    );
+    _itemController.text = _selectedMenuName;
+    _priceController.text = _cleanNumber(_selectedMenuTotal);
   }
 
   Future<void> _saveItem() async {
@@ -357,26 +350,28 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
 
     if (!saved) {
       setState(() => _saving = false);
-      _showSnackBar('تعذر حفظ العنصر، حاول مرة أخرى');
+
+      // Surface the provider's specific reason (paid-invoice lock, stale item,
+      // bad price) instead of a generic failure message.
+      _showMessage(
+        provider.lastErrorMessage ?? 'تعذر حفظ العنصر، حاول مرة أخرى',
+      );
       return;
     }
 
     Navigator.pop(context);
   }
 
-  void _clearFormInputs() {
-    _itemController.clear();
-    _priceController.clear();
-    _noteController.clear();
-    _formKey.currentState?.reset();
-  }
-
-  void _showSnackBar(String message) {
+  /// Shown while the sheet is still open, so it must be a toast: a `SnackBar`
+  /// raised from inside a modal sheet renders behind it.
+  void _showMessage(String message, {bool isError = true}) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    if (isError) {
+      AppToast.showError(context, message: message);
+    } else {
+      AppToast.showSuccess(context, message: message);
+    }
   }
 
   String? _nullableText(String value) {
@@ -384,64 +379,9 @@ class _InvoiceItemSheetContentState extends State<_InvoiceItemSheetContent> {
     return trimmed.isEmpty ? null : trimmed;
   }
 
-  double? _parsePrice(String value) {
-    var clean = value.trim().replaceAll('٫', '.').replaceAll(',', '.');
-    clean = _normalizeDigits(clean);
+  double? _parsePrice(String value) => NumberInputUtils.parseAmount(value);
 
-    if (clean.isEmpty || clean == '.' || clean == ',') return null;
-
-    final parsed = double.tryParse(clean);
-
-    if (parsed == null || !parsed.isFinite) {
-      return null;
-    }
-
-    return parsed;
-  }
-
-  String _normalizeDigits(String value) {
-    const replacements = <String, String>{
-      '٠': '0',
-      '١': '1',
-      '٢': '2',
-      '٣': '3',
-      '٤': '4',
-      '٥': '5',
-      '٦': '6',
-      '٧': '7',
-      '٨': '8',
-      '٩': '9',
-      '۰': '0',
-      '۱': '1',
-      '۲': '2',
-      '۳': '3',
-      '۴': '4',
-      '۵': '5',
-      '۶': '6',
-      '۷': '7',
-      '۸': '8',
-      '۹': '9',
-    };
-
-    var result = value;
-
-    for (final entry in replacements.entries) {
-      result = result.replaceAll(entry.key, entry.value);
-    }
-
-    return result;
-  }
-
-  double _safePositive(double value) {
-    if (value.isNaN || value.isInfinite || value < 0) return 0.0;
-    return value;
-  }
-
-  String _cleanNumber(double value) {
-    if (value <= 0) return '';
-    if (value % 1 == 0) return value.toInt().toString();
-    return value.toString();
-  }
+  String _cleanNumber(double value) => NumberInputUtils.formatForInput(value);
 }
 
 class _SheetDragHandle extends StatelessWidget {
@@ -463,10 +403,17 @@ class _SheetDragHandle extends StatelessWidget {
 }
 
 class _SelectedFixedMenuHint extends StatelessWidget {
-  final FixedMenuItemModel item;
+  final String name;
+  final double total;
+  final int count;
   final VoidCallback? onClear;
 
-  const _SelectedFixedMenuHint({required this.item, required this.onClear});
+  const _SelectedFixedMenuHint({
+    required this.name,
+    required this.total,
+    required this.count,
+    required this.onClear,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -482,6 +429,7 @@ class _SelectedFixedMenuHint extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsetsDirectional.fromSTEB(10, 7, 8, 7),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
               Icons.check_circle_outline_rounded,
@@ -490,14 +438,45 @@ class _SelectedFixedMenuHint extends StatelessWidget {
             ),
             const SizedBox(width: 7),
             Expanded(
-              child: Text(
-                'تم اختيار "${item.displayName}" من القائمة',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: colorScheme.primary,
-                  fontWeight: FontWeight.w900,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    count == 1
+                        ? 'صنف واحد من القائمة'
+                        : 'مجموع $count أصناف من القائمة',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    name,
+                    // Two lines: a composed name grows fast, but an unbounded
+                    // one would push the save button off a small screen.
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w900,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    Formatters.formatMoney(total),
+                    textDirection: TextDirection.ltr,
+                    maxLines: 1,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
               ),
             ),
             IconButton(
@@ -516,25 +495,5 @@ class _SelectedFixedMenuHint extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _PositiveDecimalTextInputFormatter extends TextInputFormatter {
-  const _PositiveDecimalTextInputFormatter();
-  static final RegExp _validInput = RegExp(
-    r'^[0-9٠-٩۰-۹]*([.,٫][0-9٠-٩۰-۹]{0,2})?$',
-  );
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final text = newValue.text.trim();
-
-    if (text.isEmpty || _validInput.hasMatch(text)) {
-      return newValue;
-    }
-
-    return oldValue;
   }
 }

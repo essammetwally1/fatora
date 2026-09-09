@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../models/fixed_menu_item_model.dart';
 import '../../models/invoice_item_model.dart';
 import '../../models/invoice_model.dart';
+import '../../models/invoice_payment_entry_model.dart';
 
 class HiveService {
   static const String invoiceBox = 'invoiceBox';
@@ -26,6 +27,10 @@ class HiveService {
       Hive.registerAdapter(FixedMenuItemModelAdapter());
     }
 
+    if (!Hive.isAdapterRegistered(3)) {
+      Hive.registerAdapter(InvoicePaymentEntryModelAdapter());
+    }
+
     if (!Hive.isBoxOpen(invoiceBox)) {
       await Hive.openBox<InvoiceModel>(invoiceBox);
     }
@@ -41,11 +46,6 @@ class HiveService {
 
   static Box<InvoiceModel> getInvoiceBox() {
     return Hive.box<InvoiceModel>(invoiceBox);
-  }
-
-  // Keep this if your InvoiceProvider already uses HiveService.getBox()
-  static Box<InvoiceModel> getBox() {
-    return getInvoiceBox();
   }
 
   static Box getSettingsBox() {

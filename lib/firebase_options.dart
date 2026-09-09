@@ -83,5 +83,4 @@ class DefaultFirebaseOptions {
     authDomain: 'fatora-dec33.firebaseapp.com',
     storageBucket: 'fatora-dec33.firebasestorage.app',
   );
-
 }

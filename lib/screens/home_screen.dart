@@ -113,8 +113,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       final provider = context.read<InvoiceProvider>();
 
-      if (provider.version == 0 && !provider.isLoading) {
-        provider.loadInvoices();
+      if (provider.version == 0 &&
+          !provider.isLoading &&
+          !provider.isMutating) {
+        // Migrates legacy Hive records and then loads. The migration existed
+        // in the repository but nothing ever invoked it.
+        unawaited(provider.bootstrap());
       }
     });
   }
@@ -242,8 +246,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               invoiceListController: _invoiceListController,
               onDeleteInvoice: _confirmAndDeleteInvoice,
               allowCreateInvoice: isCurrentMonth,
-              emptyTitle: 'لا توجد فواتير في هذا الشهر',
-              searchLabelText: 'بحث في فواتير الشهر',
+              // The legacy bucket is not a month, so it must not be described
+              // as one.
+              emptyTitle: effectiveMonth.isLegacy
+                  ? 'لا توجد فواتير قديمة'
+                  : 'لا توجد فواتير في هذا الشهر',
+              searchLabelText: effectiveMonth.isLegacy
+                  ? 'بحث في الفواتير القديمة'
+                  : 'بحث في فواتير الشهر',
             ),
             ScrollToTopButton(
               visible: _showScrollTopButton,
