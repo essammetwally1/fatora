@@ -20,6 +20,7 @@ class InvoiceProvider extends ChangeNotifier {
       <InvoiceMonthKey, InvoiceMonthSnapshot>{};
   List<InvoiceModel> _currentMonthInvoices = const [];
   InvoicesTotals _currentMonthTotals = InvoicesTotals.empty();
+  List<InvoiceModel> _starredInvoices = const [];
 
   bool _isLoading = false;
   bool _isMutating = false;
@@ -41,6 +42,13 @@ class InvoiceProvider extends ChangeNotifier {
   InvoicesTotals get currentMonthTotals => _currentMonthTotals;
 
   List<InvoiceMonthSnapshot> get invoiceMonths => _invoiceMonths;
+
+  /// Starred invoices across every month, newest first.
+  ///
+  /// Built once per data change alongside the monthly snapshots rather than
+  /// filtered in `build`, so opening the drawer never walks the whole invoice
+  /// list.
+  List<InvoiceModel> get starredInvoices => _starredInvoices;
 
   int get version => _version;
 
@@ -65,7 +73,7 @@ class InvoiceProvider extends ChangeNotifier {
     if (nextCurrentMonth == _currentMonth) return false;
 
     _currentMonth = nextCurrentMonth;
-    _rebuildMonthlySnapshots();
+    _rebuildDerivedState();
     _bumpVersion();
 
     if (notify) {
@@ -104,7 +112,7 @@ class InvoiceProvider extends ChangeNotifier {
         );
 
       _currentMonth = InvoiceMonthKey.current();
-      _rebuildMonthlySnapshots();
+      _rebuildDerivedState();
       _bumpVersion();
 
       return true;
@@ -173,7 +181,7 @@ class InvoiceProvider extends ChangeNotifier {
           _invoiceByKey[createdKey] = createdInvoice;
         }
 
-        _rebuildMonthlySnapshots();
+        _rebuildDerivedState();
         _bumpVersion();
 
         return true;
@@ -295,6 +303,107 @@ class InvoiceProvider extends ChangeNotifier {
           invoiceKey: invoiceKey,
           deltaAmount: deltaAmount,
         );
+
+        if (updatedInvoice == null) {
+          _setOperationError('لم تعد الفاتورة موجودة');
+          return false;
+        }
+
+        return _replaceInvoiceInMemory(updatedInvoice);
+      },
+    );
+  }
+
+  /// Removes one recorded payment or return from the invoice's history.
+  ///
+  /// The money goes with it: the repository lowers the paid total by the same
+  /// movement, so the breakdown keeps reconciling instead of re-printing the
+  /// deleted entry as an undated balance.
+  Future<bool> deletePaymentEntry({
+    required InvoiceModel invoice,
+    required String entryId,
+  }) async {
+    clearError(notify: false);
+
+    final cleanEntryId = entryId.trim();
+
+    if (cleanEntryId.isEmpty) {
+      _setOperationError('تعذر تحديد العملية');
+      return false;
+    }
+
+    final invoiceKey = invoice.key;
+
+    if (invoiceKey == null) {
+      _setOperationError('الفاتورة غير محفوظة');
+      return false;
+    }
+
+    return _runMutation(
+      failureMessage: 'تعذر حذف العملية',
+      operation: () async {
+        final updatedInvoice = await _repository.deletePaymentEntry(
+          invoiceKey: invoiceKey,
+          entryId: cleanEntryId,
+        );
+
+        if (updatedInvoice == null) {
+          _setOperationError('لم تعد هذه العملية موجودة');
+          return false;
+        }
+
+        return _replaceInvoiceInMemory(updatedInvoice);
+      },
+    );
+  }
+
+  /// Shows or hides the dated breakdown on the exported PDF and image.
+  Future<bool> setPaymentDetailsHiddenInExport({
+    required InvoiceModel invoice,
+    required bool hidden,
+  }) {
+    return _setInvoiceFlag(
+      invoice: invoice,
+      failureMessage: 'تعذر حفظ إعداد طباعة التفاصيل',
+      write: (invoiceKey) => _repository.setPaymentDetailsHiddenInExport(
+        invoiceKey: invoiceKey,
+        hidden: hidden,
+      ),
+    );
+  }
+
+  Future<bool> setInvoiceStarred({
+    required InvoiceModel invoice,
+    required bool starred,
+  }) {
+    return _setInvoiceFlag(
+      invoice: invoice,
+      failureMessage: starred
+          ? 'تعذر تمييز الفاتورة'
+          : 'تعذر إلغاء تمييز الفاتورة',
+      write: (invoiceKey) =>
+          _repository.setStarred(invoiceKey: invoiceKey, starred: starred),
+    );
+  }
+
+  Future<bool> _setInvoiceFlag({
+    required InvoiceModel invoice,
+    required String failureMessage,
+    required Future<InvoiceModel?> Function(dynamic invoiceKey) write,
+  }) {
+    clearError(notify: false);
+
+    final invoiceKey = invoice.key;
+
+    if (invoiceKey == null) {
+      _setOperationError('الفاتورة غير محفوظة');
+      return Future<bool>.value(false);
+    }
+
+    return _runMutation(
+      failureMessage: failureMessage,
+      operation: () async {
+        final updatedInvoice = await write(invoiceKey);
 
         if (updatedInvoice == null) {
           _setOperationError('لم تعد الفاتورة موجودة');
@@ -572,7 +681,7 @@ class InvoiceProvider extends ChangeNotifier {
 
     _invoices = List<InvoiceModel>.unmodifiable(nextInvoices);
     _invoiceByKey[updatedKey] = updatedInvoice;
-    _rebuildMonthlySnapshots();
+    _rebuildDerivedState();
     _bumpVersion();
 
     return true;
@@ -592,10 +701,30 @@ class InvoiceProvider extends ChangeNotifier {
     _invoices = List<InvoiceModel>.unmodifiable(nextInvoices);
     _invoiceByKey.remove(invoiceKey);
 
-    _rebuildMonthlySnapshots();
+    _rebuildDerivedState();
     _bumpVersion();
 
     return true;
+  }
+
+  /// Recomputes everything the UI reads that is derived from [_invoices].
+  void _rebuildDerivedState() {
+    _rebuildMonthlySnapshots();
+    _rebuildStarredInvoices();
+  }
+
+  void _rebuildStarredInvoices() {
+    final starred = <InvoiceModel>[];
+
+    // `_invoices` is already sorted newest first, so the filtered view
+    // inherits that order without a second sort.
+    for (final invoice in _invoices) {
+      if (invoice.isStarred) starred.add(invoice);
+    }
+
+    _starredInvoices = starred.isEmpty
+        ? const <InvoiceModel>[]
+        : List<InvoiceModel>.unmodifiable(starred);
   }
 
   void _rebuildMonthlySnapshots() {

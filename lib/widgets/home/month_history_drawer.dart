@@ -2,27 +2,50 @@ import 'package:flutter/material.dart';
 
 import '../../app/app_theme.dart';
 import '../../core/utils/formatters.dart';
+import '../../data/models/invoice_model.dart';
 import '../../data/models/invoice_month_key.dart';
 import '../../data/models/invoice_month_snapshot.dart';
 import '../common/app_empty_state.dart';
 
-class MonthHistoryDrawer extends StatelessWidget {
+/// The side drawer: starred invoices first, then the month history.
+///
+/// Starred invoices are pinned above the months because that is the point of
+/// starring one — reaching it without remembering which month it belongs to.
+/// The section is collapsible so a long list of favourites cannot bury the
+/// months underneath it.
+class MonthHistoryDrawer extends StatefulWidget {
   final List<InvoiceMonthSnapshot> months;
   final InvoiceMonthKey selectedMonth;
   final ValueChanged<InvoiceMonthKey> onMonthSelected;
+  final List<InvoiceModel> starredInvoices;
+  final ValueChanged<InvoiceModel> onInvoiceSelected;
 
   const MonthHistoryDrawer({
     super.key,
     required this.months,
     required this.selectedMonth,
     required this.onMonthSelected,
+    required this.starredInvoices,
+    required this.onInvoiceSelected,
   });
+
+  @override
+  State<MonthHistoryDrawer> createState() => _MonthHistoryDrawerState();
+}
+
+class _MonthHistoryDrawerState extends State<MonthHistoryDrawer> {
+  bool _starredExpanded = true;
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
 
     final drawerWidth = screenWidth < 600 ? screenWidth * .88 : 380.0;
+
+    final starred = widget.starredInvoices;
+    final months = widget.months;
+
+    final hasStarred = starred.isNotEmpty;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -34,8 +57,57 @@ class MonthHistoryDrawer extends StatelessWidget {
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             slivers: [
               const SliverToBoxAdapter(child: _DrawerHeader()),
+              if (hasStarred) ...[
+                SliverToBoxAdapter(
+                  child: _SectionToggle(
+                    icon: Icons.star_rounded,
+                    label: 'الفواتير المميزة (${starred.length})',
+                    color: AppTheme.star,
+                    expanded: _starredExpanded,
+                    onTap: () {
+                      setState(() => _starredExpanded = !_starredExpanded);
+                    },
+                  ),
+                ),
+                if (_starredExpanded)
+                  SliverPadding(
+                    padding: const EdgeInsetsDirectional.fromSTEB(12, 2, 12, 6),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          if (index.isOdd) {
+                            return const SizedBox(height: 8);
+                          }
+
+                          final invoice = starred[index ~/ 2];
+
+                          return _StarredInvoiceTile(
+                            key: ValueKey<Object>(
+                              invoice.key ?? ObjectKey(invoice),
+                            ),
+                            invoice: invoice,
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              widget.onInvoiceSelected(invoice);
+                            },
+                          );
+                        },
+                        childCount: starred.length * 2 - 1,
+                        addAutomaticKeepAlives: false,
+                        addRepaintBoundaries: true,
+                        addSemanticIndexes: false,
+                      ),
+                    ),
+                  ),
+                SliverToBoxAdapter(
+                  child: _SectionLabel(
+                    icon: Icons.calendar_month_outlined,
+                    label: 'شهور الفواتير',
+                  ),
+                ),
+              ],
               if (months.isEmpty)
-                const SliverFillRemaining(
+                SliverFillRemaining(
                   hasScrollBody: false,
                   child: AppEmptyState(
                     icon: Icons.history_rounded,
@@ -58,10 +130,10 @@ class MonthHistoryDrawer extends StatelessWidget {
                         return _MonthCard(
                           key: ValueKey<String>('month-${snapshot.month}'),
                           snapshot: snapshot,
-                          selected: snapshot.month == selectedMonth,
+                          selected: snapshot.month == widget.selectedMonth,
                           onTap: () {
                             Navigator.of(context).pop();
-                            onMonthSelected(snapshot.month);
+                            widget.onMonthSelected(snapshot.month);
                           },
                         );
                       },
@@ -72,6 +144,208 @@ class MonthHistoryDrawer extends StatelessWidget {
                     ),
                   ),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionToggle extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  const _SectionToggle({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(12, 4, 12, 0),
+      child: Semantics(
+        button: true,
+        expanded: expanded,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            child: Row(
+              children: [
+                Icon(icon, size: 19, color: color),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                AnimatedRotation(
+                  duration: const Duration(milliseconds: 200),
+                  turns: expanded ? .5 : 0,
+                  child: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 22,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _SectionLabel({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 10, 16, 0),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: colorScheme.onSurfaceVariant),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One starred invoice, opened straight into the same details screen the
+/// month list opens.
+class _StarredInvoiceTile extends StatelessWidget {
+  final InvoiceModel invoice;
+  final VoidCallback onTap;
+
+  const _StarredInvoiceTile({
+    super.key,
+    required this.invoice,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final statusColors = context.statusColors;
+
+    final remaining = invoice.unpaidTotal;
+    final isSettled = remaining <= 0;
+
+    return Material(
+      color: AppTheme.star.withValues(alpha: .07),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 12, 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.star.withValues(alpha: .28)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.star_rounded, size: 19, color: AppTheme.star),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      invoice.displayTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      Formatters.formatInvoiceDocumentDate(invoice.createdAt),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        Formatters.formatMoney(invoice.total),
+                        maxLines: 1,
+                        textDirection: TextDirection.ltr,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isSettled
+                            ? 'مكتملة'
+                            : 'متبقي ${Formatters.formatMoney(remaining)}',
+                        maxLines: 1,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: isSettled
+                              ? statusColors.success
+                              : colorScheme.error,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),

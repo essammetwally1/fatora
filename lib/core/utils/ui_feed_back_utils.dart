@@ -1,7 +1,122 @@
 import 'package:flutter/material.dart';
 
+import 'formatters.dart';
+
 class UiFeedbackUtils {
   const UiFeedbackUtils._();
+
+  /// Confirms deleting one recorded payment or return.
+  ///
+  /// Deleting an entry moves money, so the dialog states the paid total the
+  /// invoice will be left with rather than only naming what is being removed:
+  /// the consequence is the part the user needs to agree to.
+  static Future<bool> showDeletePaymentEntryConfirmation({
+    required BuildContext context,
+    required double amount,
+    required bool isReturn,
+    required DateTime? occurredAt,
+    required double paidTotalAfter,
+  }) async {
+    final label = isReturn ? 'المرتجع' : 'الدفعة';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        final colorScheme = theme.colorScheme;
+
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: AlertDialog(
+            icon: Icon(
+              Icons.delete_forever_outlined,
+              color: colorScheme.error,
+              size: 36,
+            ),
+            title: Text('تأكيد حذف $label'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.errorContainer.withValues(alpha: .45),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: colorScheme.error.withValues(alpha: .20),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$label: ${Formatters.formatMoney(amount)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        occurredAt == null
+                            ? 'بدون تاريخ مسجل'
+                            : Formatters.formatPaymentDateTime(occurredAt),
+                        textDirection: occurredAt == null
+                            ? null
+                            : TextDirection.ltr,
+                        textAlign: TextAlign.start,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'سيصبح إجمالي المدفوع '
+                  '${Formatters.formatMoney(paidTotalAfter)}. '
+                  'لا يمكن التراجع عن هذه العملية.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.error,
+                    fontWeight: FontWeight.w700,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(false);
+                },
+                child: const Text('إلغاء'),
+              ),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.error,
+                  foregroundColor: colorScheme.onError,
+                ),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(true);
+                },
+                icon: const Icon(Icons.delete_outline_rounded, size: 19),
+                label: Text('حذف $label'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    return confirmed ?? false;
+  }
 
   static Future<bool> showDeleteConfirmation({
     required BuildContext context,

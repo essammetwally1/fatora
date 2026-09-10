@@ -23,6 +23,40 @@ class InvoicePdfGenerator {
   static final PdfColor _paymentGreen = PdfColor.fromHex('#1B6B3A');
   static final PdfColor _returnRed = PdfColor.fromHex('#A02525');
 
+  /// The payment breakdown is a supporting detail printed under the totals,
+  /// not a second invoice table, so it runs a size smaller than the item rows
+  /// and keeps its own metrics here rather than scattering magic numbers.
+  static const double _payHeaderHeight = 19;
+  static const double _payRowHeight = 17;
+  static const double _payHeaderFontSize = 8.2;
+  static const double _payRowFontSize = 8;
+  static const double _payMetaFontSize = 7.4;
+  static const double _payCellPadding = 2;
+  static const double _payNetRowHeight = 22;
+  static const double _payNetFontSize = 9.4;
+
+  /// Every table on the page is laid out as [line number | detail | amount],
+  /// and these two widths are what make that true.
+  ///
+  /// Sharing them means one vertical rule runs down each side of the page: the
+  /// line numbers stack in one band on the right, every amount in one band on
+  /// the left, and the totals rows land exactly on the item table's grid.
+  /// Before, each table divided the same width by its own flex ratios, so the
+  /// three amount columns stopped a few points apart — close enough to read as
+  /// a mistake rather than as a choice.
+  /// How many breakdown rows still print as one unbreakable block.
+  ///
+  /// At [_payRowHeight] a dozen rows plus the header and the net total come to
+  /// roughly a quarter of a page, which fits wherever it lands.
+  static const int _maxUnbreakablePaymentRows = 12;
+
+  static const double _indexColumnWidth = 38;
+  static const double _moneyColumnWidth = 142;
+
+  /// One radius and one border weight for the head of every table.
+  static const double _tableRadius = 9;
+  static const double _tableBorderWidth = .65;
+
   static const PdfColor _bgGold = PdfColor(0.72, 0.54, 0.21, 0.10);
   static const PdfColor _bgNavy = PdfColor(0.02, 0.12, 0.23, 0.06);
 
@@ -171,88 +205,70 @@ class InvoicePdfGenerator {
 
   static pw.Widget _buildTopBrand(pw.ImageProvider? logo) {
     return pw.Container(
-      height: 118,
-      padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      height: 130,
       decoration: pw.BoxDecoration(
         color: _navy,
         borderRadius: pw.BorderRadius.circular(18),
         border: pw.Border.all(color: _line, width: .85),
       ),
-      child: pw.Stack(
-        children: [
-          pw.Positioned(
-            bottom: -46,
-            right: -30,
-            child: pw.Container(
-              width: 110,
-              height: 110,
-              decoration: const pw.BoxDecoration(
-                shape: pw.BoxShape.circle,
-                color: PdfColor(.72, .54, .21, .12),
+      // The gold disc is placed to bleed off the bottom corner of the card.
+      // The clip used to be the padding box, so the disc stopped 10pt short of
+      // the corner on a straight edge, which read as a rectangle that had been
+      // cut off. Clipping outside the padding instead lets it run to the
+      // corner and take the card's radius, which is what a bleed should do.
+      child: pw.ClipRRect(
+        horizontalRadius: 18,
+        verticalRadius: 18,
+        child: pw.Stack(
+          children: [
+            pw.Positioned(
+              bottom: -46,
+              right: -30,
+              child: pw.Container(
+                width: 110,
+                height: 110,
+                decoration: const pw.BoxDecoration(
+                  shape: pw.BoxShape.circle,
+                  color: PdfColor(.72, .54, .21, .12),
+                ),
               ),
             ),
-          ),
-          pw.Positioned(
-            left: 28,
-            right: 128,
-            bottom: 7,
-            child: pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.center,
-              children: [
-                pw.Container(
-                  width: 42,
-                  height: .75,
-                  decoration: pw.BoxDecoration(
-                    color: const PdfColor(1, 1, 1, .35),
-                    borderRadius: pw.BorderRadius.circular(2),
-                  ),
-                ),
-                pw.SizedBox(width: 8),
-                pw.Transform.rotate(
-                  angle: 0.785398,
-                  child: pw.Container(
-                    width: 5,
-                    height: 5,
-                    decoration: pw.BoxDecoration(
-                      color: _gold,
-                      border: pw.Border.all(color: _gold, width: .6),
-                    ),
-                  ),
-                ),
-                pw.SizedBox(width: 8),
-                pw.Container(
-                  width: 42,
-                  height: .75,
-                  decoration: pw.BoxDecoration(
-                    color: const PdfColor(1, 1, 1, .35),
-                    borderRadius: pw.BorderRadius.circular(2),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.center,
-            children: [
-              _modernLogoSquare(logo),
-              pw.SizedBox(width: 14),
-              pw.Container(
-                width: .8,
-                height: 72,
-                color: const PdfColor(1, 1, 1, .22),
+            pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
               ),
-              pw.SizedBox(width: 14),
-              pw.Expanded(child: _simpleCenteredBrandName()),
-            ],
-          ),
-        ],
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                children: [
+                  _modernLogoSquare(logo),
+                  pw.SizedBox(width: 14),
+                  pw.Container(
+                    width: .8,
+                    height: 78,
+                    color: const PdfColor(1, 1, 1, .22),
+                  ),
+                  pw.SizedBox(width: 14),
+                  pw.Expanded(child: _simpleCenteredBrandName()),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  /// The brand lockup: the name, then the rule and the ornament beneath it.
+  ///
+  /// The ornament used to be positioned against the bottom of the card while
+  /// the name was centred in it, so the two were laid out against different
+  /// edges and landed on top of each other — the rule crossed the descenders
+  /// of "للبصريات" and the ornament crossed the rule. Everything sits in one
+  /// column now, so the gaps below the name are the gaps that print.
   static pw.Widget _simpleCenteredBrandName() {
     return pw.Container(
-      height: 86,
+      height: 110,
       width: double.infinity,
       alignment: pw.Alignment.center,
       child: pw.Column(
@@ -298,7 +314,10 @@ class InvoicePdfGenerator {
               fontWeight: pw.FontWeight.bold,
             ),
           ),
-          pw.SizedBox(height: 5),
+          // Clear of the descenders, then narrowing: the rule is wider than
+          // the ornament under it, so the pair reads as one closing flourish
+          // rather than as two rules that happen to be near each other.
+          pw.SizedBox(height: 10),
           pw.Center(
             child: pw.Container(
               width: 132,
@@ -309,8 +328,46 @@ class InvoicePdfGenerator {
               ),
             ),
           ),
+          pw.SizedBox(height: 8),
+          _brandOrnament(),
         ],
       ),
+    );
+  }
+
+  /// Two hairlines around a gold diamond, centred under the brand rule.
+  static pw.Widget _brandOrnament() {
+    pw.Widget hairline() {
+      return pw.Container(
+        width: 42,
+        height: .75,
+        decoration: pw.BoxDecoration(
+          color: const PdfColor(1, 1, 1, .35),
+          borderRadius: pw.BorderRadius.circular(2),
+        ),
+      );
+    }
+
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.center,
+      crossAxisAlignment: pw.CrossAxisAlignment.center,
+      children: [
+        hairline(),
+        pw.SizedBox(width: 8),
+        pw.Transform.rotate(
+          angle: 0.785398,
+          child: pw.Container(
+            width: 5,
+            height: 5,
+            decoration: pw.BoxDecoration(
+              color: _gold,
+              border: pw.Border.all(color: _gold, width: .6),
+            ),
+          ),
+        ),
+        pw.SizedBox(width: 8),
+        hairline(),
+      ],
     );
   }
 
@@ -474,7 +531,13 @@ class InvoicePdfGenerator {
   /// over and what came back, rather than only the net figure. Omitted
   /// entirely when nothing has been paid: an all-zero block on an unpaid
   /// invoice is noise.
+  ///
+  /// Also omitted when the invoice is set to keep its breakdown private. Only
+  /// this block goes: the totals row above still prints what was paid and what
+  /// is left, so the receipt stays complete.
   static List<pw.Widget> _buildPaymentBreakdown(InvoiceModel invoice) {
+    if (invoice.hidePaymentDetailsInExport) return const [];
+
     final rows = InvoicePaymentLine.fromInvoice(invoice);
 
     if (rows.isEmpty) return const [];
@@ -484,9 +547,7 @@ class InvoicePdfGenerator {
 
     var lineIndex = 0;
 
-    return [
-      pw.SizedBox(height: 9),
-      _paymentSectionHeader(),
+    final bodyRows = <pw.Widget>[
       if (payments.isNotEmpty) ...[
         _paymentGroupHeader(
           label: 'المدفوعات',
@@ -503,67 +564,76 @@ class InvoicePdfGenerator {
         ),
         for (final row in returns) _paymentRow(row, lineIndex++),
       ],
-      _paymentNetRow(invoice),
+    ];
+
+    final netRow = _paymentNetRow(invoice);
+
+    // `MultiPage` may break between any two widgets it is handed, and the
+    // breakdown of a long invoice really does reach the bottom of a page. Left
+    // as one widget per row it broke badly: a 22-item invoice printed its
+    // "صافي المدفوع" alone on a third page, under nothing.
+    //
+    // A breakdown short enough to fit anywhere travels as a single widget, so
+    // there is nowhere to break it. A longer one keeps its column titles with
+    // the first rows and its total with the last, and breaks only in between.
+    if (bodyRows.length <= _maxUnbreakablePaymentRows) {
+      return [
+        pw.SizedBox(height: 7),
+        pw.Column(children: [_paymentSectionHeader(), ...bodyRows, netRow]),
+      ];
+    }
+
+    final head = bodyRows.take(2).toList(growable: false);
+    final middle = bodyRows.sublist(2, bodyRows.length - 1);
+    final lastRow = bodyRows.last;
+
+    return [
+      pw.SizedBox(height: 7),
+      pw.Column(children: [_paymentSectionHeader(), ...head]),
+      ...middle,
+      pw.Column(children: [lastRow, netRow]),
     ];
   }
 
   static pw.Widget _paymentSectionHeader() {
     return pw.Container(
-      height: 26,
+      height: _payHeaderHeight,
       decoration: pw.BoxDecoration(
         color: _navy,
         borderRadius: const pw.BorderRadius.vertical(
-          top: pw.Radius.circular(9),
+          top: pw.Radius.circular(_tableRadius),
         ),
-        border: pw.Border.all(color: _line, width: .65),
+        border: pw.Border.all(color: _line, width: _tableBorderWidth),
       ),
       child: pw.Row(
         children: [
-          pw.Expanded(
-            flex: 4,
-            child: _tableText(
-              'تفاصيل الدفعات والمرتجعات',
-              color: _white,
-              bold: true,
-              center: true,
-              fontSize: 10.2,
-            ),
-          ),
-          _tableDivider(color: _line, height: 26),
-          pw.Expanded(
-            flex: 3,
-            child: _tableText(
-              'التاريخ',
-              color: _white,
-              bold: true,
-              center: true,
-              fontSize: 10.2,
-            ),
-          ),
-          _tableDivider(color: _line, height: 26),
-          pw.Expanded(
-            flex: 2,
-            child: _tableText(
-              'الوقت',
-              color: _white,
-              bold: true,
-              center: true,
-              fontSize: 10.2,
-            ),
-          ),
-          _tableDivider(color: _line, height: 26),
-          pw.Expanded(
-            flex: 3,
-            child: _tableText(
-              'المبلغ',
-              color: _white,
-              bold: true,
-              center: true,
-              fontSize: 10.2,
-            ),
+          // Blank, like the item table's leading cell, and the same width
+          // so both tables keep one grid.
+          pw.SizedBox(width: _indexColumnWidth, child: _paymentHeaderCell('')),
+          _tableDivider(color: _line, height: _payHeaderHeight),
+          pw.Expanded(flex: 4, child: _paymentHeaderCell('العملية')),
+          _tableDivider(color: _line, height: _payHeaderHeight),
+          pw.Expanded(flex: 3, child: _paymentHeaderCell('التاريخ')),
+          _tableDivider(color: _line, height: _payHeaderHeight),
+          pw.Expanded(flex: 2, child: _paymentHeaderCell('الوقت')),
+          _tableDivider(color: _line, height: _payHeaderHeight),
+          pw.SizedBox(
+            width: _moneyColumnWidth,
+            child: _paymentHeaderCell('المبلغ'),
           ),
         ],
       ),
+    );
+  }
+
+  static pw.Widget _paymentHeaderCell(String text) {
+    return _tableText(
+      text,
+      color: _white,
+      bold: true,
+      center: true,
+      fontSize: _payHeaderFontSize,
+      verticalPadding: _payCellPadding,
     );
   }
 
@@ -573,7 +643,7 @@ class InvoicePdfGenerator {
     required double amount,
   }) {
     return pw.Container(
-      height: 24,
+      height: _payRowHeight,
       decoration: pw.BoxDecoration(
         color: _softGold,
         border: pw.Border(
@@ -585,22 +655,23 @@ class InvoicePdfGenerator {
       child: pw.Row(
         children: [
           pw.Expanded(
-            flex: 9,
             child: _tableText(
               label,
               color: color,
               bold: true,
               center: true,
-              fontSize: 10.2,
+              fontSize: _payHeaderFontSize,
+              verticalPadding: _payCellPadding,
             ),
           ),
-          _tableDivider(height: 24),
-          pw.Expanded(
-            flex: 3,
+          _tableDivider(height: _payRowHeight),
+          pw.SizedBox(
+            width: _moneyColumnWidth,
             child: _priceText(
               Formatters.formatMoney(amount),
-              fontSize: 10.2,
+              fontSize: _payHeaderFontSize,
               color: color,
+              verticalPadding: _payCellPadding,
             ),
           ),
         ],
@@ -613,7 +684,7 @@ class InvoicePdfGenerator {
     final color = row.isReturn ? _returnRed : _text;
 
     return pw.Container(
-      constraints: const pw.BoxConstraints(minHeight: 26),
+      constraints: const pw.BoxConstraints(minHeight: _payRowHeight),
       decoration: pw.BoxDecoration(
         color: index.isEven ? _white : _softRow,
         border: pw.Border(
@@ -625,6 +696,18 @@ class InvoicePdfGenerator {
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.center,
         children: [
+          // Numbered like the item rows, and in the same column, so a customer
+          // can point at "دفعة رقم ٣" and be understood.
+          _tableText(
+            '${index + 1}',
+            width: _indexColumnWidth,
+            color: color,
+            bold: true,
+            center: true,
+            fontSize: _payMetaFontSize,
+            verticalPadding: _payCellPadding,
+          ),
+          _tableDivider(height: _payRowHeight),
           pw.Expanded(
             flex: 4,
             child: _tableText(
@@ -633,21 +716,23 @@ class InvoicePdfGenerator {
               bold: true,
               center: true,
               maxLines: 2,
-              fontSize: 10,
+              fontSize: _payRowFontSize,
+              verticalPadding: _payCellPadding,
             ),
           ),
-          _tableDivider(height: 26),
+          _tableDivider(height: _payRowHeight),
           pw.Expanded(
             flex: 3,
             child: _priceText(
               occurredAt == null
                   ? '—'
                   : Formatters.formatPaymentDate(occurredAt),
-              fontSize: 9.6,
+              fontSize: _payMetaFontSize,
               color: _muted,
+              verticalPadding: _payCellPadding,
             ),
           ),
-          _tableDivider(height: 26),
+          _tableDivider(height: _payRowHeight),
           pw.Expanded(
             flex: 2,
             child: _tableText(
@@ -656,18 +741,20 @@ class InvoicePdfGenerator {
                   : Formatters.formatPaymentTime(occurredAt),
               color: _muted,
               center: true,
-              fontSize: 9.6,
+              fontSize: _payMetaFontSize,
+              verticalPadding: _payCellPadding,
             ),
           ),
-          _tableDivider(height: 26),
-          pw.Expanded(
-            flex: 3,
+          _tableDivider(height: _payRowHeight),
+          pw.SizedBox(
+            width: _moneyColumnWidth,
             child: _priceText(
               row.isReturn
                   ? '- ${Formatters.formatMoney(row.amount)}'
                   : Formatters.formatMoney(row.amount),
-              fontSize: 10.2,
+              fontSize: _payRowFontSize,
               color: color,
+              verticalPadding: _payCellPadding,
             ),
           ),
         ],
@@ -679,16 +766,17 @@ class InvoicePdfGenerator {
     return pw.Container(
       decoration: pw.BoxDecoration(
         borderRadius: const pw.BorderRadius.vertical(
-          bottom: pw.Radius.circular(9),
+          bottom: pw.Radius.circular(8),
         ),
-        border: pw.Border.all(color: _line, width: .75),
+        border: pw.Border.all(color: _line, width: _tableBorderWidth),
       ),
       child: _invoiceMoneyRow(
         label: 'صافي المدفوع',
         value: Formatters.formatMoney(invoice.paidTotal),
-        height: 32,
+        height: _payNetRowHeight,
         isLast: true,
         isMain: false,
+        fontSize: _payNetFontSize,
       ),
     );
   }
@@ -699,23 +787,24 @@ class InvoicePdfGenerator {
       decoration: pw.BoxDecoration(
         color: _navy,
         borderRadius: const pw.BorderRadius.vertical(
-          top: pw.Radius.circular(9),
+          top: pw.Radius.circular(_tableRadius),
         ),
-        border: pw.Border.all(color: _line, width: .65),
+        border: pw.Border.all(color: _line, width: _tableBorderWidth),
       ),
       child: pw.Row(
         children: [
+          // Deliberately blank. The cell still holds the column's full width,
+          // so the divider beside it lines up with the one under every row.
           _tableText(
             '',
-            width: 38,
+            width: _indexColumnWidth,
             color: _white,
             bold: true,
             center: true,
-            fontSize: 9.2,
+            fontSize: 9.6,
           ),
           _tableDivider(color: _line, height: 30),
           pw.Expanded(
-            flex: 5,
             child: _tableText(
               'اسم الصنف',
               color: _white,
@@ -725,15 +814,13 @@ class InvoicePdfGenerator {
             ),
           ),
           _tableDivider(color: _line, height: 30),
-          pw.Expanded(
-            flex: 2,
-            child: _tableText(
-              'السعر',
-              color: _white,
-              bold: true,
-              center: true,
-              fontSize: 10.8,
-            ),
+          _tableText(
+            'السعر',
+            width: _moneyColumnWidth,
+            color: _white,
+            bold: true,
+            center: true,
+            fontSize: 10.8,
           ),
         ],
       ),
@@ -779,7 +866,7 @@ class InvoicePdfGenerator {
         children: [
           _tableText(
             '${index + 1}',
-            width: 38,
+            width: _indexColumnWidth,
             color: _navy,
             bold: true,
             center: true,
@@ -787,7 +874,6 @@ class InvoicePdfGenerator {
           ),
           _tableDivider(height: 34),
           pw.Expanded(
-            flex: 5,
             child: _tableText(
               item.displayItemName,
               color: _text,
@@ -798,8 +884,8 @@ class InvoicePdfGenerator {
             ),
           ),
           _tableDivider(height: 34),
-          pw.Expanded(
-            flex: 2,
+          pw.SizedBox(
+            width: _moneyColumnWidth,
             child: _priceText(
               Formatters.formatMoney(item.price),
               fontSize: 10.9,
@@ -850,20 +936,25 @@ class InvoicePdfGenerator {
     );
   }
 
+  /// One summary row: a gold label band and the amount, on the page's grid.
+  ///
+  /// The label is centred over the detail column rather than over the whole
+  /// band, so "الإجمالي" sits under "اسم الصنف" and the amount under "السعر" —
+  /// the summary reads as the last rows of the table above it, not as a
+  /// separate block that happens to be the same width.
   static pw.Widget _invoiceMoneyRow({
     required String label,
     required String value,
     required double height,
     required bool isLast,
     required bool isMain,
+    double? fontSize,
   }) {
     return pw.Row(
       children: [
         pw.Expanded(
-          flex: 4,
           child: pw.Container(
             height: height,
-            alignment: pw.Alignment.center,
             decoration: pw.BoxDecoration(
               color: _gold,
               borderRadius: isLast
@@ -872,21 +963,31 @@ class InvoicePdfGenerator {
                     )
                   : null,
             ),
-            child: pw.Text(
-              label,
-              maxLines: 1,
-              textAlign: pw.TextAlign.center,
-              style: pw.TextStyle(
-                color: _navy,
-                fontSize: isMain ? 12 : 11.4,
-                fontWeight: pw.FontWeight.bold,
-              ),
+            child: pw.Row(
+              children: [
+                pw.SizedBox(width: _indexColumnWidth),
+                pw.Expanded(
+                  child: pw.Container(
+                    alignment: pw.Alignment.center,
+                    child: pw.Text(
+                      label,
+                      maxLines: 1,
+                      textAlign: pw.TextAlign.center,
+                      style: pw.TextStyle(
+                        color: _navy,
+                        fontSize: fontSize ?? (isMain ? 12 : 11.4),
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
         pw.Container(width: 1, height: height, color: _line),
-        pw.Expanded(
-          flex: 3,
+        pw.SizedBox(
+          width: _moneyColumnWidth,
           child: pw.Container(
             height: height,
             alignment: pw.Alignment.center,
@@ -905,7 +1006,7 @@ class InvoicePdfGenerator {
               textDirection: pw.TextDirection.ltr,
               style: pw.TextStyle(
                 color: _gold,
-                fontSize: isMain ? 11.8 : 11.3,
+                fontSize: fontSize ?? (isMain ? 11.8 : 11.3),
                 fontWeight: pw.FontWeight.normal,
               ),
             ),
@@ -919,9 +1020,13 @@ class InvoicePdfGenerator {
     String text, {
     required PdfColor color,
     required double fontSize,
+    double verticalPadding = 4,
   }) {
     return pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      padding: pw.EdgeInsets.symmetric(
+        horizontal: 4,
+        vertical: verticalPadding,
+      ),
       alignment: pw.Alignment.center,
       child: pw.Text(
         text,
@@ -945,9 +1050,13 @@ class InvoicePdfGenerator {
     bool center = false,
     int maxLines = 1,
     double fontSize = 8.9,
+    double verticalPadding = 4,
   }) {
     final child = pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      padding: pw.EdgeInsets.symmetric(
+        horizontal: 4,
+        vertical: verticalPadding,
+      ),
       alignment: center ? pw.Alignment.center : pw.Alignment.centerRight,
       child: pw.Text(
         text,

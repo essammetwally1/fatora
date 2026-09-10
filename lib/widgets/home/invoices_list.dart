@@ -1,13 +1,13 @@
 import 'package:fatora/widgets/home/invoice_card.dart';
 import 'package:fatora/widgets/home/invoice_day_header.dart';
-import 'package:fatora/widgets/home/invoice_pdf_actions_sheet.dart';
+import 'package:fatora/widgets/home/invoice_export_sheet.dart';
 import 'package:flutter/material.dart';
 
 import '../../app/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/invoice_model.dart';
-import '../../screens/invoice_details_screen.dart';
+import '../../screens/invoice_details_route.dart';
 import '../common/app_empty_state.dart';
 import 'invoices_section_header.dart';
 
@@ -112,7 +112,7 @@ class _InvoicesListState extends State<InvoicesList> {
           key: _invoiceKey(invoice),
           invoice: invoice,
           onTap: () {
-            _openInvoiceDetails(context, invoice);
+            openInvoiceDetails(context, invoice);
           },
           onLongPress: () {
             widget.onDeleteInvoice(invoice);
@@ -121,8 +121,12 @@ class _InvoicesListState extends State<InvoicesList> {
             widget.onEditInvoice(invoice);
           },
 
-          onExport: () {
-            _showInvoicePdfActions(context, invoice);
+          // One button per format, each opening that format's own sheet.
+          onExportPdf: () {
+            _showExportSheet(context, invoice, InvoiceExportFormat.pdf);
+          },
+          onExportImage: () {
+            _showExportSheet(context, invoice, InvoiceExportFormat.image);
           },
         );
       },
@@ -140,6 +144,7 @@ class _InvoicesListState extends State<InvoicesList> {
         SliverFillRemaining(
           hasScrollBody: false,
           child: AppEmptyState(
+            scrollable: false,
             icon: widget.hasSearchQuery
                 ? Icons.search_off_rounded
                 : Icons.receipt_long_outlined,
@@ -168,29 +173,16 @@ class _InvoicesListState extends State<InvoicesList> {
     return ObjectKey(invoice);
   }
 
-  Future<void> _openInvoiceDetails(
+  static Future<void> _showExportSheet(
     BuildContext context,
     InvoiceModel invoice,
-  ) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (detailsContext) {
-          return InvoiceDetailsScreen(
-            invoice: invoice,
-            onExport: (selectedInvoice) {
-              _showInvoicePdfActions(detailsContext, selectedInvoice);
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  static Future<void> _showInvoicePdfActions(
-    BuildContext context,
-    InvoiceModel invoice,
+    InvoiceExportFormat format,
   ) {
-    return InvoicePdfActionsSheet.show(context: context, invoice: invoice);
+    return InvoiceExportSheet.show(
+      context: context,
+      invoice: invoice,
+      format: format,
+    );
   }
 }
 

@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
 import 'app/app_theme.dart';
+import 'app/startup_failure_app.dart';
 import 'data/services/storage/hive_service.dart';
 import 'providers/invoice_provider.dart';
 import 'providers/settings_provider.dart';
@@ -16,7 +17,18 @@ Future<void> main() async {
   // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   await initializeDateFormatting('ar');
-  await HiveService.init();
+
+  // The device is the only copy of the client's invoices, so a storage that
+  // refuses to open must say so rather than crash to a black screen.
+  try {
+    await HiveService.init();
+  } catch (error, stackTrace) {
+    debugPrint('Fatora storage failed to open:\nError: $error\n$stackTrace');
+
+    runApp(StartupFailureApp(error: error));
+
+    return;
+  }
 
   runApp(const FatoraApp());
 }
@@ -79,6 +91,5 @@ class FatoraApp extends StatelessWidget {
 // flutter build apk --release
 // flutter build web --release
 // firebase deploy --only hosting
-
 
 // flutter build apk --split-per-abi

@@ -9,6 +9,8 @@ import 'package:fatora/widgets/delete_background.dart';
 import 'package:fatora/widgets/invoice/invoice_item_sheet.dart';
 import 'package:fatora/widgets/invoice/invoice_item_tile.dart';
 import 'package:fatora/widgets/invoice/invoice_payment_summary_card.dart';
+import 'package:fatora/widgets/invoice/invoice_star_button.dart';
+import 'package:fatora/widgets/home/invoice_export_sheet.dart';
 import 'package:fatora/widgets/liquid_floating_action_button.dart';
 import 'package:fatora/widgets/pdf_action_button.dart';
 import 'package:flutter/material.dart';
@@ -21,23 +23,14 @@ import '../providers/invoice_provider.dart';
 
 class InvoiceDetailsScreen extends StatefulWidget {
   final InvoiceModel invoice;
-  final ValueChanged<InvoiceModel> onExport;
 
-  const InvoiceDetailsScreen({
-    super.key,
-    required this.invoice,
-    required this.onExport,
-  });
+  const InvoiceDetailsScreen({super.key, required this.invoice});
 
   @override
   State<InvoiceDetailsScreen> createState() => _InvoiceDetailsScreenState();
 }
 
 class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
-  /// Most of the screen the payment card may claim, leaving the rest to the
-  /// items list.
-  static const double _maxSummaryHeightFraction = .62;
-
   final Set<String> _selectedItemIds = <String>{};
 
   List<InvoiceItemModel>? _cachedItemsReference;
@@ -150,16 +143,40 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                     isMutating: isMutating,
                   )
                 : [
+                    InvoiceStarButton(
+                      invoice: currentInvoice,
+                      size: 36,
+                      iconSize: 21,
+                    ),
+                    const SizedBox(width: 8),
+                    // One icon per format, each owning that format's preview,
+                    // save and share. They sit next to each other because the
+                    // two are the same document in two formats: one to file,
+                    // one to send straight into a chat.
+                    //
+                    // Both are disabled outright while a save is running,
+                    // rather than looking tappable and quietly doing nothing.
+                    ImageActionButton(
+                      size: 36,
+                      onPressed: isMutating
+                          ? null
+                          : () => _openExport(
+                              currentInvoice,
+                              InvoiceExportFormat.image,
+                            ),
+                    ),
+                    const SizedBox(width: 8),
                     Padding(
                       padding: const EdgeInsetsDirectional.only(end: 15),
                       child: PdfActionButton(
                         size: 36,
                         iconSize: 19,
-                        onPressed: () {
-                          if (isMutating) return;
-
-                          widget.onExport(currentInvoice);
-                        },
+                        onPressed: isMutating
+                            ? null
+                            : () => _openExport(
+                                currentInvoice,
+                                InvoiceExportFormat.pdf,
+                              ),
                       ),
                     ),
                   ],
@@ -173,53 +190,54 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
                   icon: Icons.add_rounded,
                 )
               : null,
+          // One scroll view for the whole page. The payment card used to be
+          // capped at a fraction of the screen and scroll inside itself, which
+          // meant the log and the items list fought over the same screen and
+          // each got a cramped share of it. Scrolling them together lets the
+          // card be as tall as its content needs and gives the items the full
+          // width of the page on the way down.
           body: ContentWidthLimiter(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return Column(
-                  children: [
-                    // The payment card grows with its content — the payment
-                    // log expands, the system font can be scaled to 1.4 — so
-                    // it is capped and allowed to scroll inside that cap.
-                    // Left to size itself freely it overflowed the column on a
-                    // small phone, and the items list is guaranteed the rest.
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight:
-                            constraints.maxHeight * _maxSummaryHeightFraction,
-                      ),
-                      child: SingleChildScrollView(
-                        primary: false,
-                        child: InvoicePaymentSummaryCard(
-                          invoice: currentInvoice,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: _ItemsList(
-                        invoice: currentInvoice,
-                        items: sortedItems,
-                        emptyColor: colorScheme.primary,
-                        canEditItems: canEditItems,
-                        isMutating: isMutating,
-                        isSelectionMode: isSelectionMode,
-                        selectedItemIds: validSelectedItemIds,
-                        onStartSelection: _startSelection,
-                        onToggleSelection: _toggleSelection,
-                        onSwipeDelete: (originalIndex) {
-                          return _confirmAndDeleteSingleItem(
-                            invoice: currentInvoice,
-                            originalIndex: originalIndex,
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
+            child: CustomScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              slivers: [
+                SliverToBoxAdapter(
+                  child: InvoicePaymentSummaryCard(invoice: currentInvoice),
+                ),
+                _ItemsSliver(
+                  invoice: currentInvoice,
+                  items: sortedItems,
+                  emptyColor: colorScheme.primary,
+                  canEditItems: canEditItems,
+                  isMutating: isMutating,
+                  isSelectionMode: isSelectionMode,
+                  selectedItemIds: validSelectedItemIds,
+                  onStartSelection: _startSelection,
+                  onToggleSelection: _toggleSelection,
+                  onSwipeDelete: (originalIndex) {
+                    return _confirmAndDeleteSingleItem(
+                      invoice: currentInvoice,
+                      originalIndex: originalIndex,
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Opens the export sheet for one format.
+  ///
+  /// The sheet is anchored to this screen's own context, so it survives
+  /// however the user arrived here — the month list or the drawer.
+  void _openExport(InvoiceModel invoice, InvoiceExportFormat format) {
+    unawaited(
+      InvoiceExportSheet.show(
+        context: context,
+        invoice: invoice,
+        format: format,
       ),
     );
   }
@@ -499,7 +517,9 @@ class _InvoiceDetailsScreenState extends State<InvoiceDetailsScreen> {
   }
 }
 
-class _ItemsList extends StatelessWidget {
+/// The invoice items, as a sliver so they share the page's single scroll view
+/// with the payment card above them.
+class _ItemsSliver extends StatelessWidget {
   /*
    * A larger threshold makes deletion more deliberate and reduces accidental
    * swipes. Both RTL swipe directions use the same threshold.
@@ -521,7 +541,7 @@ class _ItemsList extends StatelessWidget {
   final ValueChanged<String> onToggleSelection;
   final Future<bool> Function(int originalIndex) onSwipeDelete;
 
-  const _ItemsList({
+  const _ItemsSliver({
     required this.invoice,
     required this.items,
     required this.emptyColor,
@@ -536,117 +556,131 @@ class _ItemsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (invoice.items.isEmpty) {
-      return AppEmptyState(
-        icon: Icons.playlist_add_outlined,
-        color: emptyColor,
-        title: 'لا توجد عناصر بعد',
-        message: canEditItems
-            ? 'اضغط على “إضافة عنصر” لإضافة أول صنف إلى هذه الفاتورة.'
-            : 'هذه الفاتورة مدفوعة بالكامل ولا يمكن تعديل عناصرها.',
-        bottomInset: canEditItems ? 72 : 0,
-      );
-    }
-
     final horizontalPadding = Responsive.horizontalPadding(
       MediaQuery.sizeOf(context).width,
     );
 
-    return ListView.separated(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+    final bottomPadding = canEditItems && !isSelectionMode
+        ? AppSpacing.fabScrollInset
+        : AppSpacing.xl;
+
+    if (invoice.items.isEmpty) {
+      // Whatever is left of the viewport under the payment card, so the
+      // placeholder is centred in the space it actually has rather than
+      // stranded at the top of it.
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: AppEmptyState(
+          scrollable: false,
+          icon: Icons.playlist_add_outlined,
+          color: emptyColor,
+          title: 'لا توجد عناصر بعد',
+          message: canEditItems
+              ? 'اضغط على “إضافة عنصر” لإضافة أول صنف إلى هذه الفاتورة.'
+              : 'هذه الفاتورة مدفوعة بالكامل ولا يمكن تعديل عناصرها.',
+          bottomInset: canEditItems ? 72 : 0,
+        ),
+      );
+    }
+
+    return SliverPadding(
       padding: EdgeInsets.fromLTRB(
         horizontalPadding,
         AppSpacing.sm,
         horizontalPadding,
-        canEditItems && !isSelectionMode
-            ? AppSpacing.fabScrollInset
-            : AppSpacing.xl,
+        bottomPadding,
       ),
-      itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final indexedItem = items[index];
-        final item = indexedItem.item;
-        final originalIndex = indexedItem.originalIndex;
+      sliver: SliverList.separated(
+        itemCount: items.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final indexedItem = items[index];
+          final item = indexedItem.item;
+          final originalIndex = indexedItem.originalIndex;
 
-        final itemId = item.id.trim();
-        final isSelected = selectedItemIds.contains(itemId);
+          final itemId = item.id.trim();
+          final isSelected = selectedItemIds.contains(itemId);
 
-        final canSelect = itemId.isNotEmpty && canEditItems && !isMutating;
+          final canSelect = itemId.isNotEmpty && canEditItems && !isMutating;
 
-        final canSwipeDelete = canEditItems && !isSelectionMode && !isMutating;
+          final canSwipeDelete =
+              canEditItems && !isSelectionMode && !isMutating;
 
-        final dismissibleKey = itemId.isNotEmpty
-            ? '${invoice.key}-$itemId'
-            : '${invoice.key}-legacy-'
-                  '${item.date.microsecondsSinceEpoch}-'
-                  '$originalIndex';
+          final dismissibleKey = itemId.isNotEmpty
+              ? '${invoice.key}-$itemId'
+              : '${invoice.key}-legacy-'
+                    '${item.date.microsecondsSinceEpoch}-'
+                    '$originalIndex';
 
-        return RepaintBoundary(
-          child: Dismissible(
-            key: ValueKey<String>(dismissibleKey),
-            direction: canSwipeDelete
-                ? DismissDirection.horizontal
-                : DismissDirection.none,
+          return RepaintBoundary(
+            child: Dismissible(
+              key: ValueKey<String>(dismissibleKey),
+              direction: canSwipeDelete
+                  ? DismissDirection.horizontal
+                  : DismissDirection.none,
 
-            /*
+              /*
              * Dismissible follows the finger while dragging. These settings
              * make the completed dismissal and return animation slower, while
              * the 68% threshold requires a more deliberate swipe.
              */
-            movementDuration: _movementDuration,
-            resizeDuration: _resizeDuration,
-            dismissThresholds: const {
-              DismissDirection.startToEnd: _dismissThreshold,
-              DismissDirection.endToStart: _dismissThreshold,
-            },
-            confirmDismiss: (_) {
-              if (!canSwipeDelete) {
-                return Future<bool>.value(false);
-              }
+              movementDuration: _movementDuration,
+              resizeDuration: _resizeDuration,
+              dismissThresholds: const {
+                DismissDirection.startToEnd: _dismissThreshold,
+                DismissDirection.endToStart: _dismissThreshold,
+              },
+              confirmDismiss: (_) {
+                if (!canSwipeDelete) {
+                  return Future<bool>.value(false);
+                }
 
-              return onSwipeDelete(originalIndex);
-            },
-            background: const DeleteBackground(),
-            secondaryBackground: const DeleteBackground(),
-            child: Semantics(
-              selected: isSelected,
-              button: true,
-              label: isSelected
-                  ? '${item.displayItemName}، محدد'
-                  : item.displayItemName,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onLongPress: canSelect ? () => onStartSelection(itemId) : null,
-                onTap: isSelectionMode && canSelect
-                    ? () => onToggleSelection(itemId)
-                    : null,
-                child: AbsorbPointer(
-                  absorbing: isSelectionMode,
-                  child: _SelectionFrame(
-                    isSelected: isSelected,
-                    child: InvoiceItemTile(
-                      item: item,
-                      canEdit: canEditItems && !isSelectionMode && !isMutating,
-                      onEdit: () {
-                        if (!canEditItems || isSelectionMode || isMutating) {
-                          return;
-                        }
+                return onSwipeDelete(originalIndex);
+              },
+              background: const DeleteBackground(),
+              secondaryBackground: const DeleteBackground(),
+              child: Semantics(
+                selected: isSelected,
+                button: true,
+                label: isSelected
+                    ? '${item.displayItemName}، محدد'
+                    : item.displayItemName,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onLongPress: canSelect
+                      ? () => onStartSelection(itemId)
+                      : null,
+                  onTap: isSelectionMode && canSelect
+                      ? () => onToggleSelection(itemId)
+                      : null,
+                  child: AbsorbPointer(
+                    absorbing: isSelectionMode,
+                    child: _SelectionFrame(
+                      isSelected: isSelected,
+                      child: InvoiceItemTile(
+                        item: item,
+                        canEdit:
+                            canEditItems && !isSelectionMode && !isMutating,
+                        onEdit: () {
+                          if (!canEditItems || isSelectionMode || isMutating) {
+                            return;
+                          }
 
-                        showInvoiceItemSheet(
-                          context,
-                          invoice: invoice,
-                          itemIndex: originalIndex,
-                        );
-                      },
+                          showInvoiceItemSheet(
+                            context,
+                            invoice: invoice,
+                            itemIndex: originalIndex,
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

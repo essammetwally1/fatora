@@ -12,6 +12,7 @@ import '../data/models/invoice_month_key.dart';
 import '../data/models/invoice_month_snapshot.dart';
 import '../data/models/invoices_totals.dart';
 import '../providers/invoice_provider.dart';
+import 'invoice_details_route.dart';
 import '../widgets/home/home_app_bar.dart';
 import '../widgets/home/home_body.dart';
 import '../widgets/home/invoice_name_dialog.dart';
@@ -24,6 +25,7 @@ class _InvoicesState {
   final InvoicesTotals currentTotals;
   final InvoiceMonthKey currentMonth;
   final List<InvoiceMonthSnapshot> months;
+  final List<InvoiceModel> starredInvoices;
   final int version;
 
   const _InvoicesState({
@@ -31,6 +33,7 @@ class _InvoicesState {
     required this.currentTotals,
     required this.currentMonth,
     required this.months,
+    required this.starredInvoices,
     required this.version,
   });
 
@@ -40,6 +43,7 @@ class _InvoicesState {
         other is _InvoicesState &&
             identical(currentInvoices, other.currentInvoices) &&
             identical(months, other.months) &&
+            identical(starredInvoices, other.starredInvoices) &&
             currentTotals == other.currentTotals &&
             currentMonth == other.currentMonth &&
             version == other.version;
@@ -52,6 +56,7 @@ class _InvoicesState {
       currentTotals,
       currentMonth,
       months,
+      starredInvoices,
       version,
     );
   }
@@ -157,6 +162,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         currentTotals: provider.currentMonthTotals,
         currentMonth: provider.currentMonth,
         months: provider.invoiceMonths,
+        starredInvoices: provider.starredInvoices,
         version: provider.version,
       ),
     );
@@ -199,6 +205,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           months: invoicesState.months,
           selectedMonth: effectiveMonth,
           onMonthSelected: _selectMonth,
+          starredInvoices: invoicesState.starredInvoices,
+          onInvoiceSelected: _openStarredInvoice,
         ),
 
         appBar: HomeAppBar(
@@ -263,6 +271,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  /// Opens a starred invoice from the drawer.
+  ///
+  /// Reads the invoice back out of the provider first: the drawer holds the
+  /// instance from the last rebuild, and the details screen should start from
+  /// whatever storage has now.
+  void _openStarredInvoice(InvoiceModel invoice) {
+    final provider = context.read<InvoiceProvider>();
+
+    final currentInvoice = provider.invoiceByKey(invoice.key) ?? invoice;
+
+    openInvoiceDetails(context, currentInvoice);
   }
 
   Future<void> _confirmAndDeleteInvoice(InvoiceModel invoice) async {

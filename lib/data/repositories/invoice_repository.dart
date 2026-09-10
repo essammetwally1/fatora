@@ -128,6 +128,126 @@ class InvoiceRepository {
     }
   }
 
+  /// Removes one recorded movement and takes its money back out of the total.
+  ///
+  /// Deleting a payment has to un-pay the invoice as well. Leaving
+  /// `paidAmount` alone would turn the deleted entry into a balance no entry
+  /// explains, which the breakdown prints straight back as an undated "paid
+  /// earlier" line — the opposite of what the user asked for.
+  ///
+  /// Returns null when the entry is already gone, so the caller can say so
+  /// rather than report a success that removed nothing.
+  Future<InvoiceModel?> deletePaymentEntry({
+    required dynamic invoiceKey,
+    required String entryId,
+  }) async {
+    if (invoiceKey == null) return null;
+
+    final cleanEntryId = entryId.trim();
+
+    if (cleanEntryId.isEmpty) return null;
+
+    final invoice = _box.get(invoiceKey);
+
+    if (invoice == null) return null;
+
+    final index = invoice.payments.indexWhere(
+      (entry) => entry.id.trim() == cleanEntryId,
+    );
+
+    if (index == -1) return null;
+
+    final removedEntry = invoice.payments[index];
+
+    // Read through `paidTotal`, like `applyPaidDelta`, so a legacy invoice
+    // whose payment still lives on its items is adjusted from its real
+    // balance instead of from a zeroed `paidAmount`.
+    final nextPaidAmount = _clampPaidAmount(
+      paidAmount: invoice.paidTotal - removedEntry.signedAmount,
+      total: invoice.total,
+    );
+
+    final nextPayments = List<InvoicePaymentEntryModel>.of(
+      invoice.payments,
+      growable: true,
+    )..removeAt(index);
+
+    final previousPaidAmount = invoice.paidAmount;
+    final previousPayments = invoice.payments;
+
+    try {
+      invoice.paidAmount = nextPaidAmount;
+      invoice.payments = nextPayments;
+
+      await invoice.save();
+
+      return invoice;
+    } catch (_) {
+      invoice.paidAmount = previousPaidAmount;
+      invoice.payments = previousPayments;
+
+      rethrow;
+    }
+  }
+
+  /// Chooses whether the exported PDF and image print the dated breakdown.
+  Future<InvoiceModel?> setPaymentDetailsHiddenInExport({
+    required dynamic invoiceKey,
+    required bool hidden,
+  }) {
+    return _setInvoiceFlag(
+      invoiceKey: invoiceKey,
+      value: hidden,
+      read: (invoice) => invoice.hidePaymentDetailsInExport,
+      write: (invoice, value) => invoice.hidePaymentDetailsInExport = value,
+    );
+  }
+
+  Future<InvoiceModel?> setStarred({
+    required dynamic invoiceKey,
+    required bool starred,
+  }) {
+    return _setInvoiceFlag(
+      invoiceKey: invoiceKey,
+      value: starred,
+      read: (invoice) => invoice.isStarred,
+      write: (invoice, value) => invoice.isStarred = value,
+    );
+  }
+
+  /// Writes one stored flag, putting the old value back if the write fails.
+  ///
+  /// A flag already in the wanted state returns without touching Hive: these
+  /// are toggles, and a double tap must not cost a disk write.
+  Future<InvoiceModel?> _setInvoiceFlag({
+    required dynamic invoiceKey,
+    required bool value,
+    required bool Function(InvoiceModel invoice) read,
+    required void Function(InvoiceModel invoice, bool value) write,
+  }) async {
+    if (invoiceKey == null) return null;
+
+    final invoice = _box.get(invoiceKey);
+
+    if (invoice == null) return null;
+
+    final previousValue = read(invoice);
+
+    if (previousValue == value) return invoice;
+
+    try {
+      write(invoice, value);
+
+      await invoice.save();
+
+      return invoice;
+    } catch (_) {
+      write(invoice, previousValue);
+
+      rethrow;
+    }
+  }
+
   Future<bool> deleteInvoice({
     required InvoiceModel invoice,
     dynamic invoiceKey,

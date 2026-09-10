@@ -119,6 +119,9 @@ class AppTheme {
   static const Color green = Color(0xFF22C55E);
   static const Color blue = Color(0xFF3B82F6);
 
+  /// Marks a starred invoice, wherever one is shown.
+  static const Color star = Color(0xFFF5A524);
+
   static const Color _lightSurface = Colors.white;
   static const Color _darkSurface = Color(0xFF1A1B35);
   static const Color _darkSurfaceHigh = Color(0xFF242544);

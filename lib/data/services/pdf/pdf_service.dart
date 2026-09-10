@@ -3,8 +3,9 @@ import 'dart:typed_data';
 import 'package:fatora/data/models/invoice_model.dart';
 import 'package:printing/printing.dart';
 
+import '../files/app_file_saver.dart';
+import '../files/invoice_file_names.dart';
 import 'invoice_pdf_generator.dart';
-import 'pdf_file_saver.dart';
 
 class PdfService {
   const PdfService._();
@@ -17,7 +18,7 @@ class PdfService {
     final bytes = await buildInvoicePdf(invoice);
     final fileName = fileNameForInvoice(invoice);
 
-    final savedPath = await PdfFileSaver.save(bytes: bytes, fileName: fileName);
+    final savedPath = await AppFileSaver.save(bytes: bytes, fileName: fileName);
 
     return PdfSaveResult(
       fileName: fileName,
@@ -44,7 +45,7 @@ class PdfService {
   }) async {
     final fileName = fileNameForInvoice(invoice);
 
-    final savedPath = await PdfFileSaver.save(bytes: bytes, fileName: fileName);
+    final savedPath = await AppFileSaver.save(bytes: bytes, fileName: fileName);
 
     return PdfSaveResult(
       fileName: fileName,
@@ -74,28 +75,7 @@ class PdfService {
   }
 
   static String fileNameForInvoice(InvoiceModel invoice) {
-    final sanitizedTitle = invoice.title
-        .trim()
-        .replaceAll(RegExp(r'[\\/:*?"<>|]+'), '-')
-        .replaceAll(RegExp(r'\s+'), '_');
-
-    final title = sanitizedTitle.isEmpty ? 'invoice' : sanitizedTitle;
-
-    // Named after the invoice's date so saved files sort by when the business
-    // happened, not by when someone happened to export them. Undated legacy
-    // invoices are marked as such instead of borrowing today's date.
-    final createdAt = invoice.createdAt;
-
-    final datePart = createdAt == null
-        ? 'legacy'
-        : '${createdAt.year.toString().padLeft(4, '0')}-'
-              '${createdAt.month.toString().padLeft(2, '0')}-'
-              '${createdAt.day.toString().padLeft(2, '0')}';
-
-    // Kept only so two exports of the same invoice cannot collide.
-    final uniqueSuffix = DateTime.now().millisecondsSinceEpoch;
-
-    return '$title-$datePart-$uniqueSuffix.pdf';
+    return InvoiceFileNames.pdf(invoice);
   }
 }
 

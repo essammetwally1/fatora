@@ -5,6 +5,7 @@ import '../../app/app_theme.dart';
 import '../../core/utils/app_toast.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/number_input_utils.dart';
+import '../../core/utils/responsive.dart';
 import '../../data/models/invoice_model.dart';
 import '../../providers/invoice_provider.dart';
 import 'invoice_payment_history.dart';
@@ -182,8 +183,15 @@ class _InvoicePaymentSummaryCardState extends State<InvoicePaymentSummaryCard> {
     final statusColor = _statusColor(colorScheme);
     final operationColor = _operationColor(colorScheme);
 
+    // The same page inset the items list below uses, so the card and the item
+    // cards share one left and right edge down the scroll view instead of
+    // stepping in and out by a few pixels at each breakpoint.
+    final horizontalPadding = Responsive.horizontalPadding(
+      MediaQuery.sizeOf(context).width,
+    );
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 8),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,

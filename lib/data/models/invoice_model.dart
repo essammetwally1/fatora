@@ -42,12 +42,30 @@ class InvoiceModel extends HiveObject {
   @HiveField(4, defaultValue: <InvoicePaymentEntryModel>[])
   List<InvoicePaymentEntryModel> payments;
 
+  /// Keeps the dated breakdown off the printed receipt and the exported image.
+  ///
+  /// Only the presentation changes: the entries stay stored, the totals row
+  /// still prints, and turning it back on reprints the same history. Stored as
+  /// "hide" rather than "show" so an invoice written before this field existed
+  /// arrives as `false` and keeps printing exactly what it printed yesterday.
+  @HiveField(5, defaultValue: false)
+  bool hidePaymentDetailsInExport;
+
+  /// Marks an invoice the user wants to find again quickly.
+  ///
+  /// Defaults to `false`, so nothing already on the phone becomes starred by
+  /// the upgrade.
+  @HiveField(6, defaultValue: false)
+  bool isStarred;
+
   InvoiceModel({
     required String title,
     required List<InvoiceItemModel> items,
     double paidAmount = 0.0,
     this.createdAt,
     List<InvoicePaymentEntryModel>? payments,
+    this.hidePaymentDetailsInExport = false,
+    this.isStarred = false,
   }) : title = title.trim(),
        items = List<InvoiceItemModel>.of(items, growable: true),
        paidAmount = _safePositive(paidAmount),
@@ -150,6 +168,9 @@ class InvoiceModel extends HiveObject {
   }
 
   bool get hasPaymentHistory => payments.isNotEmpty;
+
+  /// Whether the PDF and the image print the dated breakdown.
+  bool get printsPaymentDetails => !hidePaymentDetailsInExport;
 
   /// Recorded movements, oldest first.
   ///

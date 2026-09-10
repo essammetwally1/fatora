@@ -2,8 +2,11 @@ import 'package:fatora/app/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'common/export_action_button.dart';
+
 class PdfActionButton extends StatelessWidget {
-  final VoidCallback onPressed;
+  /// Null disables the button, for when an export cannot be started yet.
+  final VoidCallback? onPressed;
   final String tooltip;
   final double size;
   final double iconSize;
@@ -22,29 +25,45 @@ class PdfActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ExportActionButton(
+      onPressed: onPressed,
+      tooltip: tooltip,
+      color: AppTheme.red,
+      size: size,
+      borderRadius: borderRadius,
+      icon: SvgPicture.asset(_pdfIcon, width: iconSize, height: iconSize),
+    );
+  }
+}
 
-    return SizedBox.square(
-      dimension: size,
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        padding: EdgeInsets.zero,
-        visualDensity: VisualDensity.compact,
-        style: IconButton.styleFrom(
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          minimumSize: Size.square(size),
-          backgroundColor: AppTheme.red.withValues(alpha: isDark ? .18 : .10),
-          foregroundColor: AppTheme.red,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-            side: BorderSide(
-              color: AppTheme.red.withValues(alpha: isDark ? .28 : .18),
-            ),
-          ),
-        ),
-        icon: SvgPicture.asset(_pdfIcon, width: iconSize, height: iconSize),
-      ),
+/// Exports the invoice as image(s) — the same layout as the PDF, rendered to
+/// PNG so it can be sent straight into a chat.
+class ImageActionButton extends StatelessWidget {
+  /// Null disables the button, for when an export cannot be started yet.
+  final VoidCallback? onPressed;
+  final String tooltip;
+  final double size;
+  final double iconSize;
+  final double borderRadius;
+
+  const ImageActionButton({
+    super.key,
+    required this.onPressed,
+    this.tooltip = 'تصدير كصورة',
+    this.size = 32,
+    this.iconSize = 19,
+    this.borderRadius = 12,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ExportActionButton(
+      onPressed: onPressed,
+      tooltip: tooltip,
+      color: AppTheme.blue,
+      size: size,
+      borderRadius: borderRadius,
+      icon: Icon(Icons.image_outlined, size: iconSize),
     );
   }
 }

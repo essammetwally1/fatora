@@ -2,10 +2,12 @@ import 'package:fatora/app/app_theme.dart';
 import 'package:fatora/data/models/invoice_item_model.dart';
 import 'package:fatora/data/models/invoice_model.dart';
 import 'package:fatora/data/models/invoice_payment_entry_model.dart';
+import 'package:fatora/providers/invoice_provider.dart';
 import 'package:fatora/widgets/invoice/invoice_payment_history.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:provider/provider.dart';
 
 InvoiceModel invoiceWith({
   required double paidAmount,
@@ -23,15 +25,22 @@ InvoiceModel invoiceWith({
   return invoice;
 }
 
+/// The widget reads the provider to know when a save is in flight and to run
+/// its own deletes. Constructing one touches no storage — the repository only
+/// reaches for a Hive box once a method is called — so the real provider can
+/// stand in for the real thing here.
 Future<void> pumpHistory(WidgetTester tester, InvoiceModel invoice) async {
   await tester.pumpWidget(
-    MaterialApp(
-      theme: AppTheme.lightTheme,
-      home: Directionality(
-        textDirection: TextDirection.rtl,
-        child: Scaffold(
-          body: SingleChildScrollView(
-            child: InvoicePaymentHistory(invoice: invoice),
+    ChangeNotifierProvider<InvoiceProvider>(
+      create: (_) => InvoiceProvider(),
+      child: MaterialApp(
+        theme: AppTheme.lightTheme,
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: InvoicePaymentHistory(invoice: invoice),
+            ),
           ),
         ),
       ),
@@ -128,7 +137,7 @@ void main() {
     expect(find.text('250.00 ج.م'), findsOneWidget);
   });
 
-  testWidgets('a long history scrolls instead of growing without limit', (
+  testWidgets('a long history opens in full, inside the page scroll', (
     tester,
   ) async {
     await pumpHistory(
@@ -150,9 +159,112 @@ void main() {
 
     expect(tester.takeException(), isNull);
 
-    final listSize = tester.getSize(find.byType(ListView));
+    // The log adds no scroll view of its own. It used to be capped and
+    // scrollable, which trapped the finger inside the card once the whole
+    // page started scrolling; it now lays out at full height and the page
+    // scrolls it.
+    expect(find.byType(Scrollable), findsOneWidget);
 
-    expect(listSize.height, lessThanOrEqualTo(190));
+    // Every entry is really laid out, not clipped away by a height cap.
+    final logHeight = tester.getSize(find.byType(InvoicePaymentHistory)).height;
+
+    expect(logHeight, greaterThan(600));
+  });
+
+  testWidgets('offers the export switch as soon as there is a history', (
+    tester,
+  ) async {
+    await pumpHistory(tester, invoiceWith(paidAmount: 250));
+
+    // Reachable without expanding the log: hiding the breakdown is a decision
+    // about the exported file, not about the log.
+    expect(find.text('طباعة التفاصيل في PDF والصورة'), findsOneWidget);
+    expect(find.text('الملف المصدَّر يعرض كل دفعة ومرتجع'), findsOneWidget);
+
+    final switchWidget = tester.widget<Switch>(find.byType(Switch));
+
+    expect(switchWidget.value, isTrue);
+  });
+
+  testWidgets('the switch reads off on an invoice set to hide details', (
+    tester,
+  ) async {
+    final invoice = invoiceWith(paidAmount: 250);
+
+    invoice.hidePaymentDetailsInExport = true;
+
+    await pumpHistory(tester, invoice);
+
+    expect(find.text('الملف المصدَّر يعرض الإجمالي فقط'), findsOneWidget);
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+  });
+
+  testWidgets('a recorded entry can be deleted, an opening balance cannot', (
+    tester,
+  ) async {
+    // 250 paid against one recorded payment of 100 leaves 150 that no entry
+    // explains, so the log holds one deletable row and one that is derived.
+    await pumpHistory(
+      tester,
+      invoiceWith(
+        paidAmount: 250,
+        payments: [
+          InvoicePaymentEntryModel(
+            amount: 100,
+            createdAt: DateTime(2026, 9, 10, 9, 15),
+          ),
+        ],
+      ),
+    );
+
+    await tester.tap(find.text('سجل الدفعات والمرتجعات (2)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('دفعة'), findsOneWidget);
+    expect(find.text('دفعة مسجلة مسبقًا'), findsOneWidget);
+
+    // One delete button, and it belongs to the row backed by a stored entry.
+    expect(find.byIcon(Icons.delete_outline_rounded), findsOneWidget);
+
+    final deleteY = tester
+        .getCenter(find.byIcon(Icons.delete_outline_rounded))
+        .dy;
+
+    expect(deleteY, closeTo(tester.getCenter(find.text('دفعة')).dy, 12));
+  });
+
+  testWidgets('deleting asks first and says what it will cost', (tester) async {
+    await pumpHistory(
+      tester,
+      invoiceWith(
+        paidAmount: 300,
+        payments: [
+          InvoicePaymentEntryModel(
+            amount: 300,
+            createdAt: DateTime(2026, 9, 10, 9, 15),
+          ),
+        ],
+      ),
+    );
+
+    await tester.tap(find.text('سجل الدفعات والمرتجعات (1)'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.delete_outline_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('تأكيد حذف الدفعة'), findsOneWidget);
+
+    // The consequence, not just the removal: what the paid total becomes.
+    expect(
+      find.textContaining('سيصبح إجمالي المدفوع 0.00 ج.م'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('إلغاء'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('تأكيد حذف الدفعة'), findsNothing);
   });
 
   testWidgets('survives a narrow viewport without overflowing', (tester) async {

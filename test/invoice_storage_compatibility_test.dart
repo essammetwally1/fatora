@@ -50,6 +50,48 @@ class _PreHistoryInvoiceModelAdapter extends TypeAdapter<InvoiceModel> {
   }
 }
 
+/// The `InvoiceModel` adapter as shipped with payment history but before the
+/// export and star flags: five fields, no `hidePaymentDetailsInExport`, no
+/// `isStarred`.
+class _PreFlagsInvoiceModelAdapter extends TypeAdapter<InvoiceModel> {
+  @override
+  final int typeId = 1;
+
+  @override
+  InvoiceModel read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
+    final fields = <int, dynamic>{
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+
+    return InvoiceModel(
+      title: fields[0] as String,
+      items: (fields[1] as List).cast<InvoiceItemModel>(),
+      paidAmount: fields[2] == null ? 0.0 : fields[2] as double,
+      createdAt: fields[3] as DateTime?,
+      payments: fields[4] == null
+          ? []
+          : (fields[4] as List?)?.cast<InvoicePaymentEntryModel>(),
+    );
+  }
+
+  @override
+  void write(BinaryWriter writer, InvoiceModel obj) {
+    writer
+      ..writeByte(5)
+      ..writeByte(0)
+      ..write(obj.title)
+      ..writeByte(1)
+      ..write(obj.items)
+      ..writeByte(2)
+      ..write(obj.paidAmount)
+      ..writeByte(3)
+      ..write(obj.createdAt)
+      ..writeByte(4)
+      ..write(obj.payments);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -156,4 +198,64 @@ void main() {
     expect(migrated.payments, isEmpty);
     expect(migrated.items.single.id.trim(), isNotEmpty);
   });
+
+  test(
+    'invoices written before the export flags existed open unchanged',
+    () async {
+      Hive.registerAdapter(_PreFlagsInvoiceModelAdapter(), override: true);
+
+      final box = await Hive.openBox<InvoiceModel>(HiveService.invoiceBox);
+
+      final key = await box.add(
+        InvoiceModel(
+          title: 'عميل',
+          items: [InvoiceItemModel(itemName: 'عدسة', price: 400)],
+          paidAmount: 250,
+          createdAt: DateTime(2026, 3, 4, 10, 30),
+          payments: [
+            InvoicePaymentEntryModel(
+              amount: 250,
+              createdAt: DateTime(2026, 3, 4, 11),
+            ),
+          ],
+        ),
+      );
+
+      await box.close();
+
+      Hive.registerAdapter(InvoiceModelAdapter(), override: true);
+
+      await Hive.openBox<InvoiceModel>(HiveService.invoiceBox);
+
+      final repository = InvoiceRepository();
+
+      final loaded = repository.getInvoices().single;
+
+      // Everything that was there is still there.
+      expect(loaded.title, 'عميل');
+      expect(loaded.paidTotal, 250.0);
+      expect(loaded.payments, hasLength(1));
+
+      // And the two fields that were not written default to the behaviour this
+      // invoice already had: its breakdown still prints, and it is not starred.
+      expect(loaded.hidePaymentDetailsInExport, isFalse);
+      expect(loaded.printsPaymentDetails, isTrue);
+      expect(loaded.isStarred, isFalse);
+
+      // Setting one and reading it back proves the new fields round-trip
+      // through the same record.
+      await repository.setStarred(invoiceKey: key, starred: true);
+      await repository.setPaymentDetailsHiddenInExport(
+        invoiceKey: key,
+        hidden: true,
+      );
+
+      final updated = repository.getInvoices().single;
+
+      expect(updated.isStarred, isTrue);
+      expect(updated.hidePaymentDetailsInExport, isTrue);
+      expect(updated.payments, hasLength(1));
+      expect(updated.paidTotal, 250.0);
+    },
+  );
 }

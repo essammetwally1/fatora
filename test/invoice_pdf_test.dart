@@ -1,6 +1,7 @@
 import 'package:fatora/core/utils/formatters.dart';
 import 'package:fatora/data/models/invoice_item_model.dart';
 import 'package:fatora/data/models/invoice_model.dart';
+import 'package:fatora/data/models/invoice_payment_entry_model.dart';
 import 'package:fatora/data/services/pdf/invoice_pdf_generator.dart';
 import 'package:fatora/data/services/pdf/pdf_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,12 +12,14 @@ InvoiceModel invoiceWith({
   required List<InvoiceItemModel> items,
   DateTime? createdAt,
   double paidAmount = 0.0,
+  List<InvoicePaymentEntryModel>? payments,
 }) {
   return InvoiceModel(
     title: title,
     items: items,
     createdAt: createdAt,
     paidAmount: paidAmount,
+    payments: payments,
   );
 }
 
@@ -174,6 +177,35 @@ void main() {
       expect(bytes, isNotEmpty);
       expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
     });
+
+    // A breakdown past the block-printing threshold takes the other path
+    // through `_buildPaymentBreakdown`: its head and its total are pinned to
+    // neighbouring rows and only the middle is left free to break, which is
+    // index arithmetic worth exercising on both sides of the boundary.
+    for (final entryCount in [6, 12, 13, 60]) {
+      test('renders a breakdown of $entryCount entries', () async {
+        final bytes = await InvoicePdfGenerator.build(
+          invoiceWith(
+            title: 'عميل بدفعات كثيرة',
+            items: [InvoiceItemModel(itemName: 'عدسة', price: 100000)],
+            createdAt: DateTime(2026, 1, 14),
+            paidAmount: 100 * entryCount.toDouble(),
+            payments: List.generate(
+              entryCount,
+              (index) => InvoicePaymentEntryModel(
+                amount: 100,
+                // A mix of both kinds, so both group headers are printed.
+                isReturn: index.isOdd,
+                createdAt: DateTime(2026, 1, 14, 9).add(Duration(hours: index)),
+              ),
+            ),
+          ),
+        );
+
+        expect(bytes, isNotEmpty);
+        expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
+      });
+    }
 
     test('renders very long item names and large amounts', () async {
       final bytes = await InvoicePdfGenerator.build(

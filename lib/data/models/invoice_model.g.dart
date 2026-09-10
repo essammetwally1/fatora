@@ -24,13 +24,15 @@ class InvoiceModelAdapter extends TypeAdapter<InvoiceModel> {
       payments: fields[4] == null
           ? []
           : (fields[4] as List?)?.cast<InvoicePaymentEntryModel>(),
+      hidePaymentDetailsInExport: fields[5] == null ? false : fields[5] as bool,
+      isStarred: fields[6] == null ? false : fields[6] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, InvoiceModel obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.title)
       ..writeByte(1)
@@ -40,7 +42,11 @@ class InvoiceModelAdapter extends TypeAdapter<InvoiceModel> {
       ..writeByte(3)
       ..write(obj.createdAt)
       ..writeByte(4)
-      ..write(obj.payments);
+      ..write(obj.payments)
+      ..writeByte(5)
+      ..write(obj.hidePaymentDetailsInExport)
+      ..writeByte(6)
+      ..write(obj.isStarred);
   }
 
   @override

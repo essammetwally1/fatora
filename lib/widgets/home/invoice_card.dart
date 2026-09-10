@@ -5,13 +5,15 @@ import 'package:flutter/material.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/responsive.dart';
 import '../../data/models/invoice_model.dart';
+import '../invoice/invoice_star_button.dart';
 
 class InvoiceCard extends StatelessWidget {
   final InvoiceModel invoice;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   final VoidCallback onEdit;
-  final VoidCallback onExport;
+  final VoidCallback onExportPdf;
+  final VoidCallback onExportImage;
 
   const InvoiceCard({
     super.key,
@@ -19,7 +21,8 @@ class InvoiceCard extends StatelessWidget {
     required this.onTap,
     required this.onLongPress,
     required this.onEdit,
-    required this.onExport,
+    required this.onExportPdf,
+    required this.onExportImage,
   });
 
   @override
@@ -100,6 +103,7 @@ class InvoiceCard extends StatelessWidget {
                     ],
                     Expanded(
                       child: _InvoiceMainInfo(
+                        invoice: invoice,
                         title: invoiceTitle,
                         titleColor: titleColor,
                         status: invoiceStatus,
@@ -108,11 +112,15 @@ class InvoiceCard extends StatelessWidget {
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     _InvoiceActionsAndTotal(
-                      width: isCompact ? 92 : 110,
+                      // Three buttons instead of two, so the column is wider
+                      // than it was; it still gives up less than the buttons
+                      // take, because the row wraps before it overflows.
+                      width: isCompact ? 104 : 118,
                       total: invoice.total,
                       totalBackgroundColor: totalBackgroundColor,
                       isDark: isDark,
-                      onExport: onExport,
+                      onExportPdf: onExportPdf,
+                      onExportImage: onExportImage,
                       onEdit: onEdit,
                     ),
                   ],
@@ -127,12 +135,14 @@ class InvoiceCard extends StatelessWidget {
 }
 
 class _InvoiceMainInfo extends StatelessWidget {
+  final InvoiceModel invoice;
   final String title;
   final Color titleColor;
   final _InvoiceStatus status;
   final bool isDark;
 
   const _InvoiceMainInfo({
+    required this.invoice,
     required this.title,
     required this.titleColor,
     required this.status,
@@ -151,17 +161,28 @@ class _InvoiceMainInfo extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: titleColor,
-            fontWeight: FontWeight.w900,
-            height: 1.15,
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: titleColor,
+                  fontWeight: FontWeight.w900,
+                  height: 1.15,
+                ),
+              ),
+            ),
+            // Beside the name rather than in the action column: three buttons
+            // do not fit that column on a narrow phone, and a star reads as a
+            // mark on the invoice, not as an action on it.
+            InvoiceStarButton(invoice: invoice, size: 30, iconSize: 18),
+          ],
         ),
-        const SizedBox(height: 7),
+        const SizedBox(height: 5),
         Row(
           children: [
             Container(
@@ -214,7 +235,8 @@ class _InvoiceActionsAndTotal extends StatelessWidget {
   final double total;
   final Color totalBackgroundColor;
   final bool isDark;
-  final VoidCallback onExport;
+  final VoidCallback onExportPdf;
+  final VoidCallback onExportImage;
   final VoidCallback onEdit;
 
   const _InvoiceActionsAndTotal({
@@ -222,7 +244,8 @@ class _InvoiceActionsAndTotal extends StatelessWidget {
     required this.total,
     required this.totalBackgroundColor,
     required this.isDark,
-    required this.onExport,
+    required this.onExportPdf,
+    required this.onExportImage,
     required this.onEdit,
   });
 
@@ -236,12 +259,23 @@ class _InvoiceActionsAndTotal extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          // A Wrap rather than a Row: at a large system font the three
+          // buttons no longer fit one line on a narrow phone, and wrapping
+          // onto a second line keeps them all reachable instead of painting
+          // an overflow stripe.
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 6,
+            runSpacing: 6,
             children: [
-              PdfActionButton(onPressed: onExport),
-              const SizedBox(width: 8),
+              PdfActionButton(size: 30, onPressed: onExportPdf),
+              ImageActionButton(
+                size: 30,
+                iconSize: 18,
+                onPressed: onExportImage,
+              ),
               _SmallCardIconButton(
+                size: 30,
                 tooltip: 'تعديل الاسم',
                 icon: Icons.edit_outlined,
                 color: AppTheme.primary,
@@ -311,6 +345,7 @@ class _SmallCardIconButton extends StatelessWidget {
   final String tooltip;
   final IconData icon;
   final Color color;
+  final double size;
   final VoidCallback onPressed;
 
   const _SmallCardIconButton({
@@ -318,6 +353,7 @@ class _SmallCardIconButton extends StatelessWidget {
     required this.icon,
     required this.color,
     required this.onPressed,
+    this.size = 32,
   });
 
   @override
@@ -325,7 +361,7 @@ class _SmallCardIconButton extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SizedBox.square(
-      dimension: 32,
+      dimension: size,
       child: IconButton(
         tooltip: tooltip,
         onPressed: onPressed,
@@ -333,7 +369,7 @@ class _SmallCardIconButton extends StatelessWidget {
         visualDensity: VisualDensity.compact,
         style: IconButton.styleFrom(
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          minimumSize: const Size.square(32),
+          minimumSize: Size.square(size),
           backgroundColor: color.withValues(alpha: isDark ? .18 : .10),
           foregroundColor: color,
           shape: RoundedRectangleBorder(

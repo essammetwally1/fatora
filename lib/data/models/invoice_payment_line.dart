@@ -16,12 +16,24 @@ class InvoicePaymentLine {
   /// True for the synthetic line covering a balance no stored entry explains.
   final bool isOpening;
 
+  /// Identifies the stored entry behind this line, or null when there is none.
+  ///
+  /// The opening line is derived from a balance rather than read from an
+  /// entry, so there is nothing to address — and nothing to delete. Callers
+  /// use this to tell the two apart instead of re-deriving it from
+  /// [isOpening].
+  final String? entryId;
+
   const InvoicePaymentLine({
     required this.amount,
     required this.isReturn,
     required this.occurredAt,
     this.isOpening = false,
+    this.entryId,
   });
+
+  /// Whether the user can remove this line from the invoice.
+  bool get isDeletable => !isOpening && (entryId?.isNotEmpty ?? false);
 
   double get signedAmount => isReturn ? -amount : amount;
 
@@ -68,6 +80,7 @@ class InvoicePaymentLine {
           amount: entry.amount,
           isReturn: entry.isReturn,
           occurredAt: entry.createdAt,
+          entryId: entry.id.trim(),
         ),
       );
     }
