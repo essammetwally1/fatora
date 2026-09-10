@@ -103,5 +103,26 @@ class Formatters {
     return '${_compactMoneyFormat.format(_safe(value).round())} $currencySymbol';
   }
 
+  /// Splits a formatted money string back into its digits and its symbol.
+  ///
+  /// The PDF has to lay the two halves out as separate runs — the digits
+  /// left-to-right, the symbol right-to-left — because a single run forced one
+  /// way prints one of them backwards. Doing the split here keeps it beside
+  /// [formatMoney], so a change to how an amount is composed cannot leave the
+  /// export quietly splitting it at the wrong place.
+  ///
+  /// Returns null when [text] does not end in the currency symbol.
+  static ({String amount, String symbol})? splitMoney(String text) {
+    if (!text.endsWith(currencySymbol)) return null;
+
+    final amount = text
+        .substring(0, text.length - currencySymbol.length)
+        .trimRight();
+
+    if (amount.isEmpty) return null;
+
+    return (amount: amount, symbol: currencySymbol);
+  }
+
   static num _safe(num value) => value.isFinite ? value : 0;
 }

@@ -999,16 +999,10 @@ class InvoicePdfGenerator {
                     )
                   : null,
             ),
-            child: pw.Text(
+            child: _moneyRun(
               value,
-              maxLines: 1,
-              textAlign: pw.TextAlign.center,
-              textDirection: pw.TextDirection.ltr,
-              style: pw.TextStyle(
-                color: _gold,
-                fontSize: fontSize ?? (isMain ? 11.8 : 11.3),
-                fontWeight: pw.FontWeight.normal,
-              ),
+              color: _gold,
+              fontSize: fontSize ?? (isMain ? 11.8 : 11.3),
             ),
           ),
         ),
@@ -1028,16 +1022,67 @@ class InvoicePdfGenerator {
         vertical: verticalPadding,
       ),
       alignment: pw.Alignment.center,
-      child: pw.Text(
+      child: _moneyRun(text, color: color, fontSize: fontSize),
+    );
+  }
+
+  /// An amount and its currency as two runs, each with its own direction.
+  ///
+  /// A money string is mixed-direction: Latin digits followed by the Arabic
+  /// "ج.م". Every money cell used to force the whole string left-to-right so
+  /// the digits would not be reordered, but that laid the currency out
+  /// left-to-right too, and it printed as "م.ج" — the right letters in the
+  /// wrong order. Splitting the string lets the digits stay left-to-right
+  /// while the symbol is laid out right-to-left, which is the only way to get
+  /// both halves right in one line.
+  static pw.Widget _moneyRun(
+    String text, {
+    required PdfColor color,
+    required double fontSize,
+  }) {
+    final style = pw.TextStyle(
+      color: color,
+      fontSize: fontSize,
+      fontWeight: pw.FontWeight.normal,
+    );
+
+    final money = Formatters.splitMoney(text);
+
+    // Totals rows and the odd placeholder pass strings with no amount in them,
+    // and a leading "-" on a return stays with the digits either way.
+    if (money == null) {
+      return pw.Text(
         text,
         maxLines: 1,
         textAlign: pw.TextAlign.center,
         textDirection: pw.TextDirection.ltr,
-        style: pw.TextStyle(
-          color: color,
-          fontSize: fontSize,
-          fontWeight: pw.FontWeight.normal,
-        ),
+        style: style,
+      );
+    }
+
+    return pw.Directionality(
+      // Pins the order of the two runs, so the digits sit on the left and the
+      // symbol on the right regardless of the page's own direction.
+      textDirection: pw.TextDirection.ltr,
+      child: pw.Row(
+        mainAxisSize: pw.MainAxisSize.min,
+        mainAxisAlignment: pw.MainAxisAlignment.center,
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          pw.Text(
+            money.amount,
+            maxLines: 1,
+            textDirection: pw.TextDirection.ltr,
+            style: style,
+          ),
+          pw.SizedBox(width: 3),
+          pw.Text(
+            money.symbol,
+            maxLines: 1,
+            textDirection: pw.TextDirection.rtl,
+            style: style,
+          ),
+        ],
       ),
     );
   }

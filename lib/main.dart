@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
 import 'app/app_theme.dart';
+import 'app/error_handling.dart';
 import 'app/startup_failure_app.dart';
 import 'data/services/storage/hive_service.dart';
 import 'providers/invoice_provider.dart';
@@ -13,6 +14,8 @@ import 'screens/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  installErrorHandling();
 
   // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 

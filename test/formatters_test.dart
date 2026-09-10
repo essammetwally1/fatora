@@ -88,4 +88,46 @@ void main() {
       expect(label, contains('2024'));
     });
   });
+
+  // The exported PDF lays the digits and the symbol out as two runs with
+  // opposite directions, because one run forced either way prints the other
+  // half backwards — "ج.م" came out as "م.ج" in every money cell. That split
+  // is only correct as long as an amount really does end in the symbol.
+  group('splitting a money string for the export', () {
+    test('separates the digits from the currency symbol', () {
+      final money = Formatters.splitMoney(Formatters.formatMoney(1250));
+
+      expect(money, isNotNull);
+      expect(money!.amount, '1,250.00');
+      expect(money.symbol, Formatters.currencySymbol);
+    });
+
+    test('keeps a return\'s minus sign with the digits', () {
+      final money = Formatters.splitMoney('- ${Formatters.formatMoney(50)}');
+
+      expect(money!.amount, '- 50.00');
+      expect(money.symbol, Formatters.currencySymbol);
+    });
+
+    test('splits the compact form too', () {
+      final money = Formatters.splitMoney(Formatters.formatMoneyCompact(1250));
+
+      expect(money!.amount, '1,250');
+    });
+
+    test('rejects a string that is not an amount', () {
+      expect(Formatters.splitMoney('الإجمالي'), isNull);
+      expect(Formatters.splitMoney(Formatters.currencySymbol), isNull);
+      expect(Formatters.splitMoney(''), isNull);
+    });
+
+    test('recomposes into exactly what was formatted', () {
+      for (final value in [0, 0.5, 999.99, 1234567.89, -20]) {
+        final formatted = Formatters.formatMoney(value);
+        final money = Formatters.splitMoney(formatted)!;
+
+        expect('${money.amount} ${money.symbol}', formatted);
+      }
+    });
+  });
 }

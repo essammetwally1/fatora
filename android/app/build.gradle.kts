@@ -55,8 +55,15 @@ android {
         release {
             signingConfig = signingConfigs.getByName("release")
 
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // Shipping the release unminified left the Kotlin/Java plugin code
+            // and every unreferenced Android resource in the APK.
+            isMinifyEnabled = true
+            isShrinkResources = true
+
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
